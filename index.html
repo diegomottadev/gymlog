@@ -292,9 +292,10 @@ function LogView({data,onSave,onBack}){
 }
 
 /* ── History ──────────────────────────────────────────────── */
-function HistoryView({data,onDelete}){
+function HistoryView({data,onDelete,onDeleteAll}){
   const sorted=useMemo(()=>[...data.workouts].sort((a,b)=>b.date.localeCompare(a.date)),[data.workouts]);
   const [confirm,setConfirm]=useState(null);
+  const [confirmAll,setConfirmAll]=useState(false);
 
   if(!sorted.length)return(
     <div style={{padding:"60px 20px",textAlign:"center",color:C.muted}}>
@@ -305,7 +306,17 @@ function HistoryView({data,onDelete}){
   );
 
   return <div>
-    <div style={{padding:"24px 20px 12px",fontSize:20,fontWeight:800}}>Historial</div>
+    <div style={{padding:"24px 20px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{fontSize:20,fontWeight:800}}>Historial</div>
+      {confirmAll?(
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>{onDeleteAll();setConfirmAll(false);}} style={{background:C.danger,border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>Borrar todos</button>
+          <button onClick={()=>setConfirmAll(false)} style={{background:C.hi,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",color:C.muted,cursor:"pointer",fontSize:12}}>No</button>
+        </div>
+      ):(
+        <Btn onClick={()=>setConfirmAll(true)} variant="danger" style={{padding:"6px 12px",fontSize:11,borderRadius:8}}>Borrar todos</Btn>
+      )}
+    </div>
     <div style={{padding:"0 20px"}}>
       {sorted.map(w=>(
         <Card key={w.id}>
@@ -756,6 +767,12 @@ function App(){
     doSync(nd);
   };
 
+  const handleDeleteAllWo=async()=>{
+    const nd={...data,workouts:[]};
+    persist(nd);setData(nd);
+    doSync(nd);
+  };
+
   const handleCreateObjective=(name)=>{
     const obj=createEmptyObjective(name);
     const nd={...data,objectives:[...data.objectives,obj]};
@@ -793,7 +810,7 @@ function App(){
 
     {view==="home"&&<HomeView data={data} onNewWorkout={()=>setView("log")}/>}
     {view==="log"&&<LogView data={data} onSave={handleSaveWo} onBack={()=>setView("home")}/>}
-    {view==="history"&&<HistoryView data={data} onDelete={handleDeleteWo}/>}
+    {view==="history"&&<HistoryView data={data} onDelete={handleDeleteWo} onDeleteAll={handleDeleteAllWo}/>}
     {view==="stats"&&<StatsView data={data}/>}
     {view==="objectives"&&<ObjectivesView data={data}
       onCreate={handleCreateObjective}
