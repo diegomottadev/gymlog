@@ -14,6 +14,7 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
   const [exercises, setExercises] = useState(day.exercises)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ nombre: '', series: 3, repeticiones: 10, peso: 0, descanso: 60 })
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
   const saveTimerRef = useRef(null)
 
   const saveChanges = (newLabel, newExercises) => {
@@ -56,6 +57,51 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
     saveChanges(label, newEx)
   }
 
+  const toggleCombine = (idx) => {
+    const newEx = [...exercises]
+    const curr = newEx[idx]
+    const next = newEx[idx + 1]
+    if (!next) return
+
+    // If both already share the same group, unlink them
+    if (curr.group && curr.group === next.group) {
+      // Check if next is the last in this group — if so, remove its group
+      const groupId = curr.group
+      const groupMembers = newEx.filter(e => e.group === groupId)
+      if (groupMembers.length <= 2) {
+        // Only 2 in group, dissolve entire group
+        newEx.forEach(e => { if (e.group === groupId) e.group = null })
+      } else {
+        // Split: everything from next onward in this group gets a new group or no group
+        let foundNext = false
+        const tail = []
+        newEx.forEach(e => {
+          if (e.id === next.id) foundNext = true
+          if (foundNext && e.group === groupId) tail.push(e)
+        })
+        if (tail.length === 1) {
+          tail[0].group = null
+        } else {
+          const newGroupId = gid()
+          tail.forEach(e => e.group = newGroupId)
+        }
+      }
+    } else {
+      // Combine: merge groups or create new one
+      const groupId = curr.group || next.group || gid()
+      if (curr.group && next.group && curr.group !== next.group) {
+        // Merge next's group into curr's group
+        const oldGroup = next.group
+        newEx.forEach(e => { if (e.group === oldGroup) e.group = curr.group })
+      } else {
+        curr.group = groupId
+        next.group = groupId
+      }
+    }
+    setExercises(newEx)
+    saveChanges(label, newEx)
+  }
+
   return (
     <div>
       <BackHeader onBack={onBack} title={`Día ${dayIndex + 1} · ${DAY_NAMES[dayIndex]}`} />
@@ -87,35 +133,138 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
           </div>
         )}
 
-        {exercises.map((ex, idx) => (
-          <Card key={ex.id}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <input value={ex.nombre} onChange={e => updateExercise(ex.id, 'nombre', e.target.value)}
-                style={{ background: 'transparent', border: 'none', color: C.text, fontWeight: 700, fontSize: 15, outline: 'none', flex: 1 }} />
-              <div style={{ display: 'flex', gap: 4 }}>
-                {idx > 0 && <button onClick={() => moveExercise(idx, -1)} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↑</button>}
-                {idx < exercises.length - 1 && <button onClick={() => moveExercise(idx, 1)} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↓</button>}
-                <button onClick={() => deleteExercise(ex.id)} style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }}>✕</button>
-              </div>
-            </div>
+        {(() => {
+          const rendered = []
+          let i = 0
+          while (i < exercises.length) {
+            const ex = exercises[i]
+            if (ex.group) {
+              // Collect group
+              const groupId = ex.group
+              const groupStart = i
+              const groupExs = []
+              while (i < exercises.length && exercises[i].group === groupId) {
+                groupExs.push({ ex: exercises[i], idx: i })
+                i++
+              }
+              const lastEx = groupExs[groupExs.length - 1].ex
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-              {[
-                ['series', 'Series', '1'],
-                ['repeticiones', 'Reps', '1'],
-                ['peso', 'Kg', '0.5'],
-                ['descanso', 'Desc(s)', '5']
-              ].map(([field, lbl, step]) => (
-                <div key={field}>
-                  <label style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
-                  <input type="number" min="0" step={step} value={ex[field]}
-                    onChange={e => updateExercise(ex.id, field, e.target.value)}
-                    style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 16, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+              rendered.push(
+                <div key={groupId}>
+                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    {/* Bracket column */}
+                    <div style={{ width: 14, marginRight: 4, position: 'relative', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', left: 2, width: 3, background: A, borderRadius: 2, top: 20, bottom: 20 }} />
+                      <div style={{ position: 'absolute', left: 2, top: 20, width: 8, height: 3, background: A, borderRadius: 2 }} />
+                      <div style={{ position: 'absolute', left: 2, bottom: 20, width: 8, height: 3, background: A, borderRadius: 2 }} />
+                    </div>
+                    {/* Cards */}
+                    <div style={{ flex: 1 }}>
+                      {groupExs.map(({ ex: gex, idx: gIdx }, gi) => (
+                        <Card key={gex.id} style={{ marginBottom: gi < groupExs.length - 1 ? 4 : undefined }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                            <input value={gex.nombre} onChange={e => updateExercise(gex.id, 'nombre', e.target.value)}
+                              style={{ background: 'transparent', border: 'none', color: C.text, fontWeight: 700, fontSize: 15, outline: 'none', flex: 1 }} />
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              {gIdx > 0 && <button onClick={() => moveExercise(gIdx, -1)} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↑</button>}
+                              {gIdx < exercises.length - 1 && <button onClick={() => moveExercise(gIdx, 1)} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↓</button>}
+                              <button onClick={() => setDeleteConfirm(gex)} style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }}>✕</button>
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                            {[['series', 'Series', '1'], ['repeticiones', 'Reps', '1'], ['peso', 'Kg', '0.5']].map(([field, lbl, step]) => (
+                              <div key={field}>
+                                <label style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
+                                <input type="number" min="0" step={step} value={gex[field]}
+                                  onChange={e => updateExercise(gex.id, field, e.target.value)}
+                                  style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 16, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                    {/* Rest time column on the right */}
+                    <div style={{ width: 68, marginLeft: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <label style={{ fontSize: 9, color: A, letterSpacing: '1px', marginBottom: 6, fontWeight: 700 }}>DESC</label>
+                      <input type="number" min="0" step="5" value={lastEx.descanso}
+                        onChange={e => updateExercise(lastEx.id, 'descanso', e.target.value)}
+                        style={{ width: 58, background: C.hi, border: `1px solid ${A}55`, borderRadius: 10, padding: '12px 4px', color: A, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                      <span style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>seg</span>
+                    </div>
+                  </div>
+
+                  {/* Combine buttons between group members */}
+                  {groupExs.map(({ idx: gIdx }, gi) => {
+                    if (gi >= groupExs.length - 1 && gIdx >= exercises.length - 1) return null
+                    const nextIdx = gIdx
+                    const isLastInGroup = gi === groupExs.length - 1
+                    if (gIdx >= exercises.length - 1) return null
+                    const nextEx = exercises[gIdx + 1]
+                    const isCombined = ex.group && nextEx && nextEx.group === groupId
+                    return (
+                      <div key={'cb-' + gIdx} style={{ display: 'flex', justifyContent: 'center', margin: '2px 0' }}>
+                        {gi < groupExs.length - 1 ? null : (
+                          <button onClick={() => toggleCombine(gIdx)}
+                            style={{
+                              background: C.hi, color: C.muted,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 12, padding: '3px 12px', fontSize: 10, fontWeight: 700,
+                              cursor: 'pointer', transition: 'all .2s'
+                            }}>🔗 Combinar</button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
-          </Card>
-        ))}
+              )
+            } else {
+              // Individual exercise
+              const idx = i
+              const nextEx = i < exercises.length - 1 ? exercises[i + 1] : null
+              i++
+
+              rendered.push(
+                <div key={ex.id}>
+                  <Card>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <input value={ex.nombre} onChange={e => updateExercise(ex.id, 'nombre', e.target.value)}
+                        style={{ background: 'transparent', border: 'none', color: C.text, fontWeight: 700, fontSize: 15, outline: 'none', flex: 1 }} />
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {idx > 0 && <button onClick={() => moveExercise(idx, -1)} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↑</button>}
+                        {idx < exercises.length - 1 && <button onClick={() => moveExercise(idx, 1)} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, width: 26, height: 26, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↓</button>}
+                        <button onClick={() => setDeleteConfirm(ex)} style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }}>✕</button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                      {[['series', 'Series', '1'], ['repeticiones', 'Reps', '1'], ['peso', 'Kg', '0.5'], ['descanso', 'Desc(s)', '5']].map(([field, lbl, step]) => (
+                        <div key={field}>
+                          <label style={{ fontSize: 9, color: '#5b9bd5', letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
+                          <input type="number" min="0" step={step} value={ex[field]}
+                            onChange={e => updateExercise(ex.id, field, e.target.value)}
+                            style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 16, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  {idx < exercises.length - 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', margin: '2px 0' }}>
+                      <button onClick={() => toggleCombine(idx)}
+                        style={{
+                          background: C.hi, color: C.muted,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 12, padding: '3px 12px', fontSize: 10, fontWeight: 700,
+                          cursor: 'pointer', transition: 'all .2s'
+                        }}>🔗 Combinar</button>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+          }
+          return rendered
+        })()}
       </div>
 
       {adding ? (
@@ -156,6 +305,26 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
           <Btn onClick={() => setAdding(true)} style={{ width: '100%', padding: 14, fontSize: 15, borderRadius: 14 }}>
             + Agregar ejercicio
           </Btn>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20 }}
+          onClick={() => setDeleteConfirm(null)}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, maxWidth: 320, width: '100%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Eliminar ejercicio</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+              ¿Estás seguro de que querés eliminar <span style={{ color: C.text, fontWeight: 600 }}>{deleteConfirm.nombre}</span>?
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn onClick={() => setDeleteConfirm(null)} variant="ghost" style={{ flex: 1, padding: 12, borderRadius: 10 }}>Cancelar</Btn>
+              <button onClick={() => { deleteExercise(deleteConfirm.id); setDeleteConfirm(null) }}
+                style={{ flex: 1, padding: 12, borderRadius: 10, background: C.danger, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import StatsView from './pages/StatsView'
 import ObjectivesView from './pages/ObjectivesView'
 import ObjectiveView from './pages/ObjectiveView'
 import DayView from './pages/DayView'
+import CalendarView from './pages/CalendarView'
 
 export default function App() {
   const [phase, setPhase] = useState('loading')
@@ -149,6 +150,7 @@ export default function App() {
   const nav = [
     { id: 'home', label: 'Inicio', ic: '🏠' },
     { id: 'objectives', label: 'Objetivos', ic: '🎯' },
+    { id: 'calendar', label: 'Calendario', ic: '📅' },
     { id: 'history', label: 'Historial', ic: '📋' },
     { id: 'stats', label: 'Stats', ic: '📊' }
   ]
@@ -161,8 +163,9 @@ export default function App() {
         <button onClick={handleLogout} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 9, padding: '5px 10px', fontSize: 11, color: C.muted, cursor: 'pointer' }}>salir</button>
       </div>}
 
-      {view === 'home' && <HomeView data={data} onNewWorkout={() => setView('log')} onSelectObjective={id => { setSelObjectiveId(id); setObjBackTo('home'); setView('objective') }} onUpdateReminder={handleUpdateReminder} />}
+      {view === 'home' && <HomeView data={data} onNewWorkout={() => setView('objectives')} onSelectObjective={id => { setSelObjectiveId(id); setObjBackTo('home'); setView('objective') }} onUpdateReminder={handleUpdateReminder} />}
       {view === 'log' && <LogView data={data} onSave={handleSaveWo} onBack={() => setView('home')} />}
+      {view === 'calendar' && <CalendarView data={data} onSelectObjectiveDay={(objId, dayIdx) => { setSelObjectiveId(objId); setSelDayIndex(dayIdx); setObjBackTo('calendar'); setView('day') }} />}
       {view === 'history' && <HistoryView data={data} onDelete={handleDeleteWo} onDeleteAll={handleDeleteAllWo} />}
       {view === 'stats' && <StatsView data={data} />}
       {view === 'objectives' && <ObjectivesView data={data}
@@ -180,7 +183,7 @@ export default function App() {
         dayIndex={selDayIndex}
         completions={data.completions}
         onToggleCompletion={handleToggleCompletion}
-        onBack={() => setView('objective')}
+        onBack={() => setView(objBackTo === 'calendar' ? 'calendar' : 'objective')}
         onUpdate={handleUpdateObjective} />}
 
       {!subView && <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: C.card, borderTop: `1px solid ${C.border}`, display: 'flex', zIndex: 100 }}>
