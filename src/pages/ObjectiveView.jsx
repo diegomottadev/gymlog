@@ -24,10 +24,21 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
     setEditingName(false)
   }
 
+  const [movingDay, setMovingDay] = useState(null)
+
   const saveDate = (field, value) => {
     if (field === 'startDate') setStartDate(value)
     else setEndDate(value)
     onUpdate({ ...objective, [field]: value })
+  }
+
+  const swapDays = (fromIdx, toIdx) => {
+    const newDays = [...objective.days]
+    const temp = newDays[fromIdx]
+    newDays[fromIdx] = newDays[toIdx]
+    newDays[toIdx] = temp
+    onUpdate({ ...objective, days: newDays })
+    setMovingDay(null)
   }
 
   return (
@@ -120,6 +131,12 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {hasContent && doneToday && <span style={{ fontSize: 10, color: A, fontWeight: 700 }}>HOY</span>}
+                  {hasContent && (
+                    <button onClick={e => { e.stopPropagation(); setMovingDay(idx) }}
+                      style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 10, color: C.muted, cursor: 'pointer', fontWeight: 700 }}>
+                      ⇄
+                    </button>
+                  )}
                   <div style={{ fontSize: 11, color: C.muted }}>{day.exercises.length ? day.exercises.length + ' ej.' : 'Sin ejercicios'}</div>
                 </div>
               </div>
@@ -184,6 +201,45 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
           )
         })}
       </div>
+
+      {movingDay !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 20 }}
+          onClick={() => setMovingDay(null)}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, maxWidth: 320, width: '100%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Mover rutina</div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+              Mover <span style={{ color: A, fontWeight: 700 }}>{DAY_NAMES[movingDay]}</span>{objective.days[movingDay].label ? ` (${objective.days[movingDay].label})` : ''} a:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {objective.days.map((d, idx) => {
+                if (idx === movingDay) return null
+                const hasContent = d.label || d.exercises.length > 0
+                return (
+                  <button key={idx} onClick={() => swapDays(movingDay, idx)}
+                    style={{
+                      background: C.hi, border: `1px solid ${C.border}`, borderRadius: 10,
+                      padding: '12px 14px', cursor: 'pointer', display: 'flex',
+                      justifyContent: 'space-between', alignItems: 'center'
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{DAY_NAMES[idx]}</span>
+                      {d.label && <span style={{ fontSize: 11, color: A }}>{d.label}</span>}
+                    </div>
+                    <span style={{ fontSize: 10, color: C.muted }}>
+                      {hasContent ? `${d.exercises.length} ej. ⇄` : 'Vacío →'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            <button onClick={() => setMovingDay(null)}
+              style={{ width: '100%', marginTop: 12, padding: 10, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
