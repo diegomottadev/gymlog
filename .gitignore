@@ -9,6 +9,7 @@ node_modules/
 # IDE / Editor
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
