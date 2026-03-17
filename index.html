@@ -32,14 +32,25 @@ const KEY="gymtracker_v1";
 const FKEY="gymtracker_firebase_config";
 const A="#BBFF00";
 const C={bg:"#0a0a0a",card:"#141414",hi:"#1e1e1e",border:"#252525",muted:"#555",text:"#f0f0f0",danger:"#ff5555"};
+const DAY_NAMES=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 
 /* ── helpers ──────────────────────────────────────────────── */
 const gid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 const toDay=()=>new Date().toISOString().slice(0,10);
-const loadLocal=()=>{try{return JSON.parse(localStorage.getItem(KEY)||"null")||{workouts:[]}}catch{return{workouts:[]}}};
+const loadLocal=()=>{try{const d=JSON.parse(localStorage.getItem(KEY)||"null")||{};return{workouts:d.workouts||[],objectives:d.objectives||[]};}catch{return{workouts:[],objectives:[]}}};
 const persist=d=>localStorage.setItem(KEY,JSON.stringify(d));
 const vol=w=>w.exercises.reduce((t,e)=>t+e.sets.reduce((s,st)=>s+(st.w||0)*(st.r||0),0),0);
 const fmtDate=d=>new Date(d+"T12:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
+
+function mergeData(local,remote){
+  const wMap={};
+  (local.workouts||[]).forEach(w=>wMap[w.id]=w);
+  (remote.workouts||[]).forEach(w=>wMap[w.id]=w);
+  const oMap={};
+  (local.objectives||[]).forEach(o=>oMap[o.id]=o);
+  (remote.objectives||[]).forEach(o=>oMap[o.id]=o);
+  return{workouts:Object.values(wMap).sort((a,b)=>b.date.localeCompare(a.date)),objectives:Object.values(oMap)};
+}
 
 function getStreak(workouts){
   const days=[...new Set(workouts.map(w=>w.date))].sort().reverse();
@@ -49,6 +60,10 @@ function getStreak(workouts){
     else break;
   }
   return n;
+}
+
+function createEmptyObjective(name){
+  return{id:gid(),name,createdAt:toDay(),days:DAY_NAMES.map((_,i)=>({dayNumber:i+1,label:"",exercises:[]}))};
 }
 
 /* ── Firebase singleton ───────────────────────────────────── */
@@ -80,16 +95,22 @@ async function fbSave(data){
 }
 
 /* ── UI helpers ───────────────────────────────────────────── */
-function Card({children,style={}}){
-  return <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"16px 20px",marginBottom:12,...style}}>{children}</div>;
+function Card({children,style={},onClick}){
+  return <div onClick={onClick} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"16px 20px",marginBottom:12,cursor:onClick?"pointer":"default",...style}}>{children}</div>;
 }
 function Btn({onClick,children,variant="primary",style={},disabled=false}){
   const v={primary:{background:A,color:"#111"},ghost:{background:"transparent",color:C.muted,border:`1px solid ${C.border}`},danger:{background:"transparent",color:C.danger,border:`1px solid ${C.danger}`}};
   return <button onClick={disabled?undefined:onClick} style={{padding:"10px 20px",borderRadius:10,fontWeight:700,fontSize:14,cursor:disabled?"not-allowed":"pointer",border:"none",transition:"opacity .15s",opacity:disabled?.4:1,...v[variant],...style}}>{children}</button>;
 }
-function Input({value,onChange,placeholder,type="text",step,min}){
+function Input({value,onChange,placeholder,type="text",step,min,style={}}){
   return <input type={type} value={value} onChange={onChange} placeholder={placeholder} step={step} min={min}
-    style={{width:"100%",background:C.hi,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",color:C.text,fontSize:14,outline:"none",marginBottom:10}}/>;
+    style={{width:"100%",background:C.hi,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",color:C.text,fontSize:14,outline:"none",marginBottom:10,...style}}/>;
+}
+function BackHeader({onBack,title}){
+  return <div style={{padding:"24px 20px 16px",display:"flex",alignItems:"center",gap:14}}>
+    <button onClick={onBack} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,width:36,height:36,color:C.muted,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
+    <div style={{fontSize:20,fontWeight:800}}>{title}</div>
+  </div>;
 }
 
 /* ── Setup wizard ─────────────────────────────────────────── */
@@ -269,10 +290,7 @@ function LogView({data,onSave,onBack}){
   const sug=newEx?known.filter(n=>n.toLowerCase().includes(newEx.toLowerCase())).slice(0,5):known.slice(0,5);
 
   return <div>
-    <div style={{padding:"24px 20px 16px",display:"flex",alignItems:"center",gap:14}}>
-      <button onClick={onBack} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,width:36,height:36,color:C.muted,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
-      <div style={{fontSize:20,fontWeight:800}}>Registrar</div>
-    </div>
+    <BackHeader onBack={onBack} title="Registrar"/>
 
     <div style={{padding:"0 20px 12px"}}>
       <input value={name} onChange={e=>setName(e.target.value)} placeholder="Nombre: Push Day, Piernas, etc."
@@ -486,12 +504,284 @@ function StatsView({data}){
   </div>;
 }
 
+/* ── Objectives List ─────────────────────────────────────── */
+function ObjectivesView({data,onCreate,onSelect,onDelete}){
+  const [newName,setNewName]=useState("");
+  const [confirm,setConfirm]=useState(null);
+
+  const handleCreate=()=>{
+    if(!newName.trim())return;
+    onCreate(newName.trim());
+    setNewName("");
+  };
+
+  return <div>
+    <div style={{padding:"24px 20px 12px",fontSize:20,fontWeight:800}}>Objetivos</div>
+
+    <div style={{padding:"0 20px 16px"}}>
+      <div style={{display:"flex",gap:8}}>
+        <input value={newName} onChange={e=>setNewName(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter")handleCreate();}}
+          placeholder="Nuevo objetivo… ej: Hipertrofia Fase 1"
+          style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",color:C.text,fontSize:14,outline:"none"}}/>
+        <Btn onClick={handleCreate} style={{padding:"12px 20px",fontSize:18,borderRadius:12}}>+</Btn>
+      </div>
+    </div>
+
+    <div style={{padding:"0 20px"}}>
+      {!data.objectives.length&&(
+        <div style={{padding:"40px 20px",textAlign:"center",color:C.muted}}>
+          <div style={{fontSize:48,marginBottom:16}}>🎯</div>
+          <div style={{fontSize:16,fontWeight:600,color:C.text,marginBottom:8}}>Sin objetivos aún</div>
+          <div style={{fontSize:13}}>Creá tu primer programa de entrenamiento</div>
+        </div>
+      )}
+      {data.objectives.map(obj=>{
+        const exCount=obj.days.reduce((t,d)=>t+d.exercises.length,0);
+        const activeDays=obj.days.filter(d=>d.label||d.exercises.length).length;
+        return <Card key={obj.id} onClick={()=>onSelect(obj.id)}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>{obj.name}</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{activeDays} días activos · {exCount} ejercicios</div>
+              <div style={{display:"flex",gap:4,marginTop:8}}>
+                {obj.days.map((d,i)=>(
+                  <div key={i} style={{
+                    width:28,height:28,borderRadius:8,fontSize:10,fontWeight:700,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    background:(d.label||d.exercises.length)?A:C.hi,
+                    color:(d.label||d.exercises.length)?"#111":C.muted,
+                    border:`1px solid ${(d.label||d.exercises.length)?A:C.border}`
+                  }}>{DAY_NAMES[i].slice(0,2)}</div>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+              {confirm===obj.id?(
+                <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
+                  <button onClick={e=>{e.stopPropagation();onDelete(obj.id);setConfirm(null);}} style={{background:C.danger,border:"none",borderRadius:6,padding:"4px 8px",color:"#fff",cursor:"pointer",fontSize:11}}>Borrar</button>
+                  <button onClick={e=>{e.stopPropagation();setConfirm(null);}} style={{background:C.hi,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",color:C.muted,cursor:"pointer",fontSize:11}}>No</button>
+                </div>
+              ):(
+                <button onClick={e=>{e.stopPropagation();setConfirm(obj.id);}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,padding:"2px 4px"}}>🗑</button>
+              )}
+            </div>
+          </div>
+        </Card>;
+      })}
+    </div>
+  </div>;
+}
+
+/* ── Objective Detail (Days) ─────────────────────────────── */
+function ObjectiveView({objective,onBack,onUpdate,onSelectDay}){
+  if(!objective)return null;
+
+  const updateLabel=(dayIdx,label)=>{
+    const updated={...objective,days:objective.days.map((d,i)=>i===dayIdx?{...d,label}:d)};
+    onUpdate(updated);
+  };
+
+  return <div>
+    <BackHeader onBack={onBack} title={objective.name}/>
+
+    <div style={{padding:"0 20px"}}>
+      {objective.days.map((day,idx)=>{
+        const hasContent=day.label||day.exercises.length>0;
+        return <Card key={idx} onClick={()=>onSelectDay(idx)} style={{opacity:hasContent?1:0.6}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:hasContent?12:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{
+                minWidth:36,height:36,borderRadius:10,fontSize:13,fontWeight:900,
+                display:"flex",alignItems:"center",justifyContent:"center",
+                background:hasContent?A:C.hi,color:hasContent?"#111":C.muted
+              }}>{idx+1}</div>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:hasContent?C.text:C.muted}}>{DAY_NAMES[idx]}</div>
+                {day.label&&<div style={{fontSize:12,color:A,marginTop:2}}>{day.label}</div>}
+              </div>
+            </div>
+            <div style={{fontSize:11,color:C.muted}}>{day.exercises.length?day.exercises.length+" ej.":"Sin ejercicios"}</div>
+          </div>
+
+          {day.exercises.length>0&&(
+            <div style={{borderTop:`1px solid ${C.border}`,paddingTop:10}}>
+              {day.exercises.slice(0,4).map(ex=>(
+                <div key={ex.id} style={{fontSize:12,color:C.muted,marginBottom:3,display:"flex",justifyContent:"space-between"}}>
+                  <span>{ex.nombre}</span>
+                  <span style={{color:C.text,fontFamily:"monospace",fontSize:11}}>{ex.series}x{ex.repeticiones} · {ex.peso}kg · {ex.descanso}s</span>
+                </div>
+              ))}
+              {day.exercises.length>4&&<div style={{fontSize:11,color:C.muted}}>+{day.exercises.length-4} más</div>}
+            </div>
+          )}
+        </Card>;
+      })}
+    </div>
+  </div>;
+}
+
+/* ── Day Routine (Exercises) ─────────────────────────────── */
+function DayView({objective,dayIndex,onBack,onUpdate}){
+  if(!objective)return null;
+  const day=objective.days[dayIndex];
+  const [label,setLabel]=useState(day.label);
+  const [exercises,setExercises]=useState(day.exercises);
+  const [adding,setAdding]=useState(false);
+  const [form,setForm]=useState({nombre:"",series:3,repeticiones:10,peso:0,descanso:60});
+  const saveTimerRef=useRef(null);
+
+  const saveChanges=(newLabel,newExercises)=>{
+    if(saveTimerRef.current)clearTimeout(saveTimerRef.current);
+    saveTimerRef.current=setTimeout(()=>{
+      const updated={...objective,days:objective.days.map((d,i)=>i===dayIndex?{...d,label:newLabel,exercises:newExercises}:d)};
+      onUpdate(updated);
+    },500);
+  };
+
+  const handleLabelChange=(v)=>{setLabel(v);saveChanges(v,exercises);};
+
+  const addExercise=()=>{
+    if(!form.nombre.trim())return;
+    const newEx=[...exercises,{id:gid(),nombre:form.nombre.trim(),series:form.series,repeticiones:form.repeticiones,peso:form.peso,descanso:form.descanso}];
+    setExercises(newEx);
+    saveChanges(label,newEx);
+    setForm({nombre:"",series:3,repeticiones:10,peso:0,descanso:60});
+    setAdding(false);
+  };
+
+  const deleteExercise=(id)=>{
+    const newEx=exercises.filter(e=>e.id!==id);
+    setExercises(newEx);
+    saveChanges(label,newEx);
+  };
+
+  const updateExercise=(id,field,value)=>{
+    const newEx=exercises.map(e=>e.id===id?{...e,[field]:field==="nombre"?value:(parseFloat(value)||0)}:e);
+    setExercises(newEx);
+    saveChanges(label,newEx);
+  };
+
+  const moveExercise=(idx,dir)=>{
+    const newIdx=idx+dir;
+    if(newIdx<0||newIdx>=exercises.length)return;
+    const newEx=[...exercises];
+    [newEx[idx],newEx[newIdx]]=[newEx[newIdx],newEx[idx]];
+    setExercises(newEx);
+    saveChanges(label,newEx);
+  };
+
+  return <div>
+    <BackHeader onBack={onBack} title={`Día ${dayIndex+1} · ${DAY_NAMES[dayIndex]}`}/>
+
+    <div style={{padding:"0 20px 16px"}}>
+      <label style={{fontSize:11,color:C.muted,letterSpacing:"1px",display:"block",marginBottom:6}}>GRUPO MUSCULAR / RUTINA</label>
+      <input value={label} onChange={e=>handleLabelChange(e.target.value)}
+        placeholder="ej: Espalda - Trícep"
+        style={{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",color:A,fontSize:15,fontWeight:700,outline:"none"}}/>
+    </div>
+
+    <div style={{padding:"0 20px"}}>
+      {!exercises.length&&!adding&&(
+        <div style={{padding:"30px 20px",textAlign:"center",color:C.muted}}>
+          <div style={{fontSize:36,marginBottom:12}}>📝</div>
+          <div style={{fontSize:14,marginBottom:4}}>Sin ejercicios en este día</div>
+          <div style={{fontSize:12}}>Agregá ejercicios para armar la rutina</div>
+        </div>
+      )}
+
+      {exercises.map((ex,idx)=>(
+        <Card key={ex.id}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <input value={ex.nombre} onChange={e=>updateExercise(ex.id,"nombre",e.target.value)}
+              style={{background:"transparent",border:"none",color:C.text,fontWeight:700,fontSize:15,outline:"none",flex:1}}/>
+            <div style={{display:"flex",gap:4}}>
+              {idx>0&&<button onClick={()=>moveExercise(idx,-1)} style={{background:C.hi,border:`1px solid ${C.border}`,borderRadius:6,width:26,height:26,color:C.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>}
+              {idx<exercises.length-1&&<button onClick={()=>moveExercise(idx,1)} style={{background:C.hi,border:`1px solid ${C.border}`,borderRadius:6,width:26,height:26,color:C.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>↓</button>}
+              <button onClick={()=>deleteExercise(ex.id)} style={{background:"none",border:"none",color:C.danger,cursor:"pointer",fontSize:14,padding:"2px 6px"}}>✕</button>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8}}>
+            {[
+              ["series","Series","1"],
+              ["repeticiones","Reps","1"],
+              ["peso","Kg","0.5"],
+              ["descanso","Desc(s)","5"]
+            ].map(([field,lbl,step])=>(
+              <div key={field}>
+                <label style={{fontSize:9,color:C.muted,letterSpacing:"1px",display:"block",marginBottom:4,textAlign:"center"}}>{lbl}</label>
+                <input type="number" min="0" step={step} value={ex[field]}
+                  onChange={e=>updateExercise(ex.id,field,e.target.value)}
+                  style={{width:"100%",background:C.hi,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 4px",color:C.text,fontSize:16,fontFamily:"monospace",fontWeight:700,textAlign:"center",outline:"none"}}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ))}
+    </div>
+
+    {adding?(
+      <div style={{padding:"0 20px 20px"}}>
+        <Card style={{border:`1px solid ${A}`}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:14,color:A}}>Nuevo ejercicio</div>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:10,color:C.muted,letterSpacing:"1px",display:"block",marginBottom:4}}>NOMBRE</label>
+            <input value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))}
+              onKeyDown={e=>{if(e.key==="Enter")addExercise();}}
+              placeholder="ej: Press banca, Remo con barra…"
+              autoFocus
+              style={{width:"100%",background:C.hi,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",color:C.text,fontSize:14,outline:"none"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:16}}>
+            {[
+              ["series","Series",form.series],
+              ["repeticiones","Reps",form.repeticiones],
+              ["peso","Kg",form.peso],
+              ["descanso","Desc(s)",form.descanso]
+            ].map(([field,lbl,val])=>(
+              <div key={field}>
+                <label style={{fontSize:9,color:C.muted,letterSpacing:"1px",display:"block",marginBottom:4,textAlign:"center"}}>{lbl}</label>
+                <input type="number" min="0" value={val}
+                  onChange={e=>setForm(p=>({...p,[field]:parseFloat(e.target.value)||0}))}
+                  style={{width:"100%",background:C.hi,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 4px",color:C.text,fontSize:16,fontFamily:"monospace",fontWeight:700,textAlign:"center",outline:"none"}}/>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={addExercise} disabled={!form.nombre.trim()} style={{flex:1,padding:12,borderRadius:10}}>✓ Agregar</Btn>
+            <Btn onClick={()=>setAdding(false)} variant="ghost" style={{padding:12,borderRadius:10}}>Cancelar</Btn>
+          </div>
+        </Card>
+      </div>
+    ):(
+      <div style={{padding:"8px 20px 32px"}}>
+        <Btn onClick={()=>setAdding(true)} style={{width:"100%",padding:14,fontSize:15,borderRadius:14}}>
+          + Agregar ejercicio
+        </Btn>
+      </div>
+    )}
+  </div>;
+}
+
 /* ── App root ─────────────────────────────────────────────── */
 function App(){
-  const [phase,setPhase]=useState("loading"); // loading | setup | app
-  const [data,setData]=useState({workouts:[]});
+  const [phase,setPhase]=useState("loading");
+  const [data,setData]=useState({workouts:[],objectives:[]});
   const [view,setView]=useState("home");
-  const [syncStatus,setSyncStatus]=useState("idle"); // idle | syncing | ok | error
+  const [syncStatus,setSyncStatus]=useState("idle");
+  const [selObjectiveId,setSelObjectiveId]=useState(null);
+  const [selDayIndex,setSelDayIndex]=useState(null);
+
+  const syncRef=useRef(null);
+  const doSync=useCallback((newData)=>{
+    if(syncRef.current)clearTimeout(syncRef.current);
+    setSyncStatus("syncing");
+    syncRef.current=setTimeout(async()=>{
+      await fbSave(newData);
+      setSyncStatus("ok");
+    },1000);
+  },[]);
 
   useEffect(()=>{
     const cfg=localStorage.getItem(FKEY);
@@ -501,12 +791,8 @@ function App(){
       setSyncStatus("syncing");
       const remote=await fbLoad();
       const local=loadLocal();
-      if(remote&&remote.workouts){
-        // merge: union por id
-        const map={};
-        local.workouts.forEach(w=>map[w.id]=w);
-        remote.workouts.forEach(w=>map[w.id]=w);
-        const merged={workouts:Object.values(map).sort((a,b)=>b.date.localeCompare(a.date))};
+      if(remote){
+        const merged=mergeData(local,remote);
         persist(merged);setData(merged);
       } else {
         setData(local);
@@ -520,28 +806,40 @@ function App(){
   const handleSaveWo=async(wo)=>{
     const nd={...data,workouts:[...data.workouts,wo]};
     persist(nd);setData(nd);setView("home");
-    setSyncStatus("syncing");
-    await fbSave(nd);
-    setSyncStatus("ok");
+    doSync(nd);
   };
 
-  const handleDelete=async(id)=>{
+  const handleDeleteWo=async(id)=>{
     const nd={...data,workouts:data.workouts.filter(w=>w.id!==id)};
     persist(nd);setData(nd);
-    setSyncStatus("syncing");
-    await fbSave(nd);
-    setSyncStatus("ok");
+    doSync(nd);
+  };
+
+  const handleCreateObjective=(name)=>{
+    const obj=createEmptyObjective(name);
+    const nd={...data,objectives:[...data.objectives,obj]};
+    persist(nd);setData(nd);
+    doSync(nd);
+  };
+
+  const handleUpdateObjective=(updated)=>{
+    const nd={...data,objectives:data.objectives.map(o=>o.id===updated.id?updated:o)};
+    persist(nd);setData(nd);
+    doSync(nd);
+  };
+
+  const handleDeleteObjective=(id)=>{
+    const nd={...data,objectives:data.objectives.filter(o=>o.id!==id)};
+    persist(nd);setData(nd);
+    doSync(nd);
   };
 
   const handleSetupDone=async()=>{
     setSyncStatus("syncing");
     const remote=await fbLoad();
     const local=loadLocal();
-    if(remote&&remote.workouts){
-      const map={};
-      local.workouts.forEach(w=>map[w.id]=w);
-      remote.workouts.forEach(w=>map[w.id]=w);
-      const merged={workouts:Object.values(map)};
+    if(remote){
+      const merged=mergeData(local,remote);
       persist(merged);setData(merged);
     } else {
       setData(local);await fbSave(local);
@@ -558,21 +856,36 @@ function App(){
   );
   if(phase==="setup")return <SetupView onDone={handleSetupDone}/>;
 
-  const nav=[{id:"home",label:"Inicio",ic:"🏠"},{id:"history",label:"Historial",ic:"📋"},{id:"stats",label:"Stats",ic:"📊"}];
+  const subView=["log","objective","day"].includes(view);
+  const nav=[{id:"home",label:"Inicio",ic:"🏠"},{id:"objectives",label:"Objetivos",ic:"🎯"},{id:"history",label:"Historial",ic:"📋"},{id:"stats",label:"Stats",ic:"📊"}];
   const syncIc=syncStatus==="syncing"?"⟳":syncStatus==="ok"?"☁️":"⚠️";
 
-  return <div style={{background:C.bg,minHeight:"100vh",color:C.text,maxWidth:480,margin:"0 auto",paddingBottom:view==="log"?0:76}}>
-    {view!=="log"&&<div style={{position:"absolute",top:24,right:20,display:"flex",alignItems:"center",gap:10,zIndex:50}}>
+  return <div style={{background:C.bg,minHeight:"100vh",color:C.text,maxWidth:480,margin:"0 auto",paddingBottom:subView?0:76}}>
+    {!subView&&<div style={{position:"absolute",top:24,right:20,display:"flex",alignItems:"center",gap:10,zIndex:50}}>
       <div title={syncStatus==="ok"?"Datos sincronizados con Firebase":syncStatus==="syncing"?"Sincronizando…":"Error de sync"} style={{fontSize:16,cursor:"default"}}>{syncIc}</div>
       <button onClick={()=>{localStorage.removeItem(FKEY);window.location.reload();}} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:9,padding:"5px 10px",fontSize:11,color:C.muted,cursor:"pointer"}}>cfg</button>
     </div>}
 
     {view==="home"&&<HomeView data={data} onNewWorkout={()=>setView("log")}/>}
     {view==="log"&&<LogView data={data} onSave={handleSaveWo} onBack={()=>setView("home")}/>}
-    {view==="history"&&<HistoryView data={data} onDelete={handleDelete}/>}
+    {view==="history"&&<HistoryView data={data} onDelete={handleDeleteWo}/>}
     {view==="stats"&&<StatsView data={data}/>}
+    {view==="objectives"&&<ObjectivesView data={data}
+      onCreate={handleCreateObjective}
+      onSelect={(id)=>{setSelObjectiveId(id);setView("objective");}}
+      onDelete={handleDeleteObjective}/>}
+    {view==="objective"&&<ObjectiveView
+      objective={data.objectives.find(o=>o.id===selObjectiveId)}
+      onBack={()=>setView("objectives")}
+      onUpdate={handleUpdateObjective}
+      onSelectDay={(idx)=>{setSelDayIndex(idx);setView("day");}}/>}
+    {view==="day"&&<DayView
+      objective={data.objectives.find(o=>o.id===selObjectiveId)}
+      dayIndex={selDayIndex}
+      onBack={()=>setView("objective")}
+      onUpdate={handleUpdateObjective}/>}
 
-    {view!=="log"&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:C.card,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:100}}>
+    {!subView&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:C.card,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:100}}>
       {nav.map(item=>(
         <button key={item.id} onClick={()=>setView(item.id)}
           style={{flex:1,padding:"10px 0 14px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
