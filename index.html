@@ -33,6 +33,14 @@ const FKEY="gymtracker_firebase_config";
 const A="#BBFF00";
 const C={bg:"#0a0a0a",card:"#141414",hi:"#1e1e1e",border:"#252525",muted:"#555",text:"#f0f0f0",danger:"#ff5555"};
 const DAY_NAMES=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyA4hUQYcaOfa6048GT_RFGblkLczKvyRhU",
+  authDomain:"gymtrack-d3c1b.firebaseapp.com",
+  projectId:"gymtrack-d3c1b",
+  storageBucket:"gymtrack-d3c1b.firebasestorage.app",
+  messagingSenderId:"1043912526777",
+  appId:"1:1043912526777:web:e606d213a4ae6e6ab94468"
+};
 
 /* ── helpers ──────────────────────────────────────────────── */
 const gid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
@@ -784,10 +792,15 @@ function App(){
   },[]);
 
   useEffect(()=>{
-    const cfg=localStorage.getItem(FKEY);
-    if(!cfg){setPhase("setup");return;}
-    initFirebase(JSON.parse(cfg)).then(async ok=>{
-      if(!ok){setPhase("setup");return;}
+    const cfg=FIREBASE_CONFIG;
+    initFirebase(cfg).then(async ok=>{
+      if(!ok){
+        // Firebase falló, arrancar solo con datos locales
+        setData(loadLocal());
+        setPhase("app");
+        return;
+      }
+      localStorage.setItem(FKEY,JSON.stringify(cfg));
       setSyncStatus("syncing");
       const remote=await fbLoad();
       const local=loadLocal();
@@ -834,27 +847,12 @@ function App(){
     doSync(nd);
   };
 
-  const handleSetupDone=async()=>{
-    setSyncStatus("syncing");
-    const remote=await fbLoad();
-    const local=loadLocal();
-    if(remote){
-      const merged=mergeData(local,remote);
-      persist(merged);setData(merged);
-    } else {
-      setData(local);await fbSave(local);
-    }
-    setSyncStatus("ok");
-    setPhase("app");
-  };
-
   if(phase==="loading")return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",flexDirection:"column",gap:16}}>
       <div style={{fontSize:32}}>💪</div>
       <div style={{fontSize:13,color:C.muted}}>Cargando…</div>
     </div>
   );
-  if(phase==="setup")return <SetupView onDone={handleSetupDone}/>;
 
   const subView=["log","objective","day"].includes(view);
   const nav=[{id:"home",label:"Inicio",ic:"🏠"},{id:"objectives",label:"Objetivos",ic:"🎯"},{id:"history",label:"Historial",ic:"📋"},{id:"stats",label:"Stats",ic:"📊"}];
@@ -863,7 +861,6 @@ function App(){
   return <div style={{background:C.bg,minHeight:"100vh",color:C.text,maxWidth:480,margin:"0 auto",paddingBottom:subView?0:76}}>
     {!subView&&<div style={{position:"absolute",top:24,right:20,display:"flex",alignItems:"center",gap:10,zIndex:50}}>
       <div title={syncStatus==="ok"?"Datos sincronizados con Firebase":syncStatus==="syncing"?"Sincronizando…":"Error de sync"} style={{fontSize:16,cursor:"default"}}>{syncIc}</div>
-      <button onClick={()=>{localStorage.removeItem(FKEY);window.location.reload();}} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:9,padding:"5px 10px",fontSize:11,color:C.muted,cursor:"pointer"}}>cfg</button>
     </div>}
 
     {view==="home"&&<HomeView data={data} onNewWorkout={()=>setView("log")}/>}
