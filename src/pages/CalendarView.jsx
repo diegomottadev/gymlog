@@ -74,7 +74,7 @@ export default function CalendarView({ data, onSelectObjectiveDay }) {
     else setMonth(m => m + 1)
   }
 
-  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(routineMap[todayStr] ? todayStr : null)
 
   return (
     <div>
