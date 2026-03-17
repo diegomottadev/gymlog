@@ -19,6 +19,24 @@ export async function fbSignIn(email, pass) {
 export async function fbRegister(email, pass) {
   const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass)
   _uid = cred.user.uid
+  await cred.user.sendEmailVerification()
+  return cred.user
+}
+
+export async function fbResendVerification() {
+  const user = firebase.auth().currentUser
+  if (user && !user.emailVerified) {
+    await user.sendEmailVerification()
+  }
+}
+
+export async function fbReloadUser() {
+  const user = firebase.auth().currentUser
+  if (user) {
+    await user.reload()
+    return firebase.auth().currentUser
+  }
+  return null
 }
 
 export async function fbSignOut() {
