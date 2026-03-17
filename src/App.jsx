@@ -36,7 +36,6 @@ export default function App() {
     try { initFirebaseApp(FIREBASE_CONFIG) } catch (e) { console.error(e) }
     fbOnAuthChange(async user => {
       if (!user) { setPhase('login'); return }
-      if (!user.emailVerified) { setPhase('login'); return }
       setUid(user.uid)
       setSyncStatus('syncing')
       const remote = await fbLoad()

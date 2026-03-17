@@ -33,12 +33,6 @@ export default function LoginView({ onDone }) {
     try {
       if (mode === 'login') {
         await fbSignIn(email, pass)
-        const user = await fbReloadUser()
-        if (user && !user.emailVerified) {
-          setVerifying(true)
-          setLoading(false)
-          return
-        }
         onDone()
       } else {
         await fbRegister(email, pass)
