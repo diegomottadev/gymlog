@@ -122,7 +122,7 @@ function BackHeader({onBack,title}){
 }
 
 /* ── Home ─────────────────────────────────────────────────── */
-function HomeView({data,onNewWorkout}){
+function HomeView({data,onNewWorkout,onSelectObjective}){
   const streak=useMemo(()=>getStreak(data.workouts),[data.workouts]);
   const last7=useMemo(()=>{
     const days=[];
@@ -195,6 +195,23 @@ function HomeView({data,onNewWorkout}){
           </div>
         </div>
       </Card>
+    </div>}
+
+    {data.objectives.length>0&&<div style={{padding:"0 20px 8px"}}>
+      <div style={{fontSize:11,color:C.muted,letterSpacing:"1px",marginBottom:10}}>MIS OBJETIVOS</div>
+      {data.objectives.map(obj=>{
+        const activeDays=obj.days.filter(d=>d.label||d.exercises.length).length;
+        const exCount=obj.days.reduce((t,d)=>t+d.exercises.length,0);
+        return <Card key={obj.id} onClick={()=>onSelectObjective(obj.id)} style={{cursor:"pointer"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{obj.name}</div>
+              <div style={{fontSize:12,color:C.muted}}>{activeDays} días · {exCount} ejercicios</div>
+            </div>
+            <div style={{fontSize:18,color:C.muted}}>→</div>
+          </div>
+        </Card>;
+      })}
     </div>}
 
     <div style={{padding:"0 20px 8px"}}>
@@ -721,6 +738,7 @@ function App(){
   const [syncStatus,setSyncStatus]=useState("idle");
   const [selObjectiveId,setSelObjectiveId]=useState(null);
   const [selDayIndex,setSelDayIndex]=useState(null);
+  const [objBackTo,setObjBackTo]=useState("objectives");
 
   const syncRef=useRef(null);
   const doSync=useCallback((newData)=>{
@@ -809,17 +827,17 @@ function App(){
       <div title={syncStatus==="ok"?"Datos sincronizados con Firebase":syncStatus==="syncing"?"Sincronizando…":"Error de sync"} style={{fontSize:16,cursor:"default"}}>{syncIc}</div>
     </div>}
 
-    {view==="home"&&<HomeView data={data} onNewWorkout={()=>setView("log")}/>}
+    {view==="home"&&<HomeView data={data} onNewWorkout={()=>setView("log")} onSelectObjective={(id)=>{setSelObjectiveId(id);setObjBackTo("home");setView("objective");}}/>}
     {view==="log"&&<LogView data={data} onSave={handleSaveWo} onBack={()=>setView("home")}/>}
     {view==="history"&&<HistoryView data={data} onDelete={handleDeleteWo} onDeleteAll={handleDeleteAllWo}/>}
     {view==="stats"&&<StatsView data={data}/>}
     {view==="objectives"&&<ObjectivesView data={data}
       onCreate={handleCreateObjective}
-      onSelect={(id)=>{setSelObjectiveId(id);setView("objective");}}
+      onSelect={(id)=>{setSelObjectiveId(id);setObjBackTo("objectives");setView("objective");}}
       onDelete={handleDeleteObjective}/>}
     {view==="objective"&&<ObjectiveView
       objective={data.objectives.find(o=>o.id===selObjectiveId)}
-      onBack={()=>setView("objectives")}
+      onBack={()=>setView(objBackTo)}
       onUpdate={handleUpdateObjective}
       onSelectDay={(idx)=>{setSelDayIndex(idx);setView("day");}}/>}
     {view==="day"&&<DayView
