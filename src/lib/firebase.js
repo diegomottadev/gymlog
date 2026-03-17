@@ -16,17 +16,22 @@ export async function fbSignIn(email, pass) {
   _uid = cred.user.uid
 }
 
+const VERIFY_SETTINGS = {
+  url: 'https://diegomottadev.github.io/gymlog/',
+  handleCodeInApp: false
+}
+
 export async function fbRegister(email, pass) {
   const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass)
   _uid = cred.user.uid
-  await cred.user.sendEmailVerification()
+  await cred.user.sendEmailVerification(VERIFY_SETTINGS)
   return cred.user
 }
 
 export async function fbResendVerification() {
   const user = firebase.auth().currentUser
   if (user && !user.emailVerified) {
-    await user.sendEmailVerification()
+    await user.sendEmailVerification(VERIFY_SETTINGS)
   }
 }
 
