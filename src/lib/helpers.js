@@ -1,7 +1,9 @@
 import { KEY, DAY_NAMES, EMPTY_DATA } from './constants'
 
 export const gid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4)
-export const toDay = () => new Date().toISOString().slice(0, 10)
+const pad = n => String(n).padStart(2, '0')
+export const dateStr = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+export const toDay = () => dateStr(new Date())
 export const getTodayDayIndex = () => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1 }
 
 export const loadLocal = () => {
@@ -28,9 +30,9 @@ export function getWeekRange() {
   const now = new Date()
   const dow = now.getDay()
   const diff = dow === 0 ? 6 : dow - 1
-  const mon = new Date(now); mon.setDate(now.getDate() - diff); mon.setHours(0, 0, 0, 0)
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23, 59, 59, 999)
-  return { mon: mon.toISOString().slice(0, 10), sun: sun.toISOString().slice(0, 10) }
+  const mon = new Date(now); mon.setDate(now.getDate() - diff); mon.setHours(12, 0, 0, 0)
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6, 12, 0, 0)
+  return { mon: dateStr(mon), sun: dateStr(sun) }
 }
 
 export function mergeData(local, remote) {
@@ -51,8 +53,9 @@ export function mergeData(local, remote) {
   }
 }
 
-export function getStreak(workouts) {
-  const days = [...new Set(workouts.map(w => w.date))].sort().reverse()
+export function getStreak(completions = []) {
+  const completionDates = completions.map(c => c.date)
+  const days = [...new Set(completionDates)].sort().reverse()
   let n = 0, cur = toDay()
   for (const d of days) {
     if (d === cur) {

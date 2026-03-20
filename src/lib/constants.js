@@ -18,6 +18,13 @@ export const FIREBASE_CONFIG = {
   messagingSenderId: '1043912526777',
   appId: '1:1043912526777:web:e606d213a4ae6e6ab94468'
 }
+export const ADMIN_EMAILS = ['diegomottadev@gmail.com', 'admin@admin.com']
+export const STUDENT_COUNT_RANGES = ['1-3', '4-8', '9-15', '16+']
+export const FUNCTIONS_URL = 'https://us-central1-gymtrack-d3c1b.cloudfunctions.net'
+export const SUBSCRIPTION_PLANS = {
+  athlete: { ars: 5000, usd: 3, label: 'Athlete' },
+  trainer: { ars: 13500, usd: 9, label: 'Trainer' }
+}
 export const EMPTY_DATA = {
   workouts: [],
   objectives: [],

@@ -1,15 +1,26 @@
 import { useState, useRef } from 'react'
 import { A, C, DAY_NAMES } from '../lib/constants'
-import { gid, toDay } from '../lib/helpers'
+import { gid, toDay, getWeekRange, dateStr } from '../lib/helpers'
 import Card from '../components/Card'
 import Btn from '../components/Btn'
 import BackHeader from '../components/BackHeader'
 
-export default function DayView({ objective, dayIndex, completions, onToggleCompletion, onBack, onUpdate }) {
+export default function DayView({ objective, dayIndex, selectedDate, completions, onToggleCompletion, onBack, onUpdate }) {
   if (!objective) return null
   const day = objective.days[dayIndex]
-  const today = toDay()
-  const isCompleted = completions.some(c => c.objectiveId === objective.id && c.dayIndex === dayIndex && c.date === today)
+  const { mon } = getWeekRange()
+  // Use selectedDate from calendar, or calculate from current week
+  let dayDateStr
+  if (selectedDate) {
+    dayDateStr = selectedDate
+  } else {
+    const monDate = new Date(mon + 'T12:00:00')
+    const dayDate = new Date(monDate)
+    dayDate.setDate(monDate.getDate() + dayIndex)
+    dayDateStr = dateStr(dayDate)
+  }
+  const isCompleted = completions.some(c => c.objectiveId === objective.id && c.dayIndex === dayIndex && c.date === dayDateStr)
+  const formattedDate = selectedDate ? new Date(selectedDate + 'T12:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : null
   const [label, setLabel] = useState(day.label)
   const [exercises, setExercises] = useState(day.exercises)
   const [adding, setAdding] = useState(false)
@@ -104,10 +115,10 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
 
   return (
     <div>
-      <BackHeader onBack={onBack} title={`Día ${dayIndex + 1} · ${DAY_NAMES[dayIndex]}`} />
+      <BackHeader onBack={onBack} title={formattedDate ? `Día ${dayIndex + 1}. ${DAY_NAMES[dayIndex]} ${formattedDate}` : `Día ${dayIndex + 1} · ${DAY_NAMES[dayIndex]}`} />
 
       {exercises.length > 0 && <div style={{ padding: '0 20px 12px' }}>
-        <button onClick={() => onToggleCompletion(objective.id, dayIndex, today)}
+        <button onClick={() => onToggleCompletion(objective.id, dayIndex, dayDateStr)}
           style={{
             width: '100%', padding: 14, borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer',
             border: isCompleted ? 'none' : `2px solid ${A}`, transition: 'all .2s',
@@ -174,24 +185,24 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                             {[['series', 'Series', '1'], ['repeticiones', 'Reps', '1'], ['peso', 'Kg', '0.5']].map(([field, lbl, step]) => (
                               <div key={field}>
-                                <label style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
+                                <label style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
                                 <input type="number" min="0" step={step} value={gex[field]}
                                   onChange={e => updateExercise(gex.id, field, e.target.value)}
-                                  style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 16, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                                  style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
                               </div>
                             ))}
                           </div>
                         </Card>
                       ))}
                     </div>
-                    {/* Rest time column on the right */}
-                    <div style={{ width: 68, marginLeft: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <label style={{ fontSize: 9, color: A, letterSpacing: '1px', marginBottom: 6, fontWeight: 700 }}>DESC</label>
-                      <input type="number" min="0" step="5" value={lastEx.descanso}
-                        onChange={e => updateExercise(lastEx.id, 'descanso', e.target.value)}
-                        style={{ width: 58, background: C.hi, border: `1px solid ${A}55`, borderRadius: 10, padding: '12px 4px', color: A, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
-                      <span style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>seg</span>
-                    </div>
+                  </div>
+                  {/* Rest time below combination */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '8px 0', padding: '8px 0' }}>
+                    <label style={{ fontSize: 12, color: A, fontWeight: 700 }}>Descanso</label>
+                    <input type="number" min="0" step="5" value={lastEx.descanso}
+                      onChange={e => updateExercise(lastEx.id, 'descanso', e.target.value)}
+                      style={{ width: 70, background: C.hi, border: `1px solid ${A}55`, borderRadius: 10, padding: '10px 4px', color: A, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                    <span style={{ fontSize: 12, color: '#fff' }}>seg</span>
                   </div>
 
                   {/* Combine buttons between group members */}
@@ -209,7 +220,7 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
                             style={{
                               background: C.hi, color: C.muted,
                               border: `1px solid ${C.border}`,
-                              borderRadius: 12, padding: '3px 12px', fontSize: 10, fontWeight: 700,
+                              borderRadius: 12, padding: '3px 12px', fontSize: 12, fontWeight: 700,
                               cursor: 'pointer', transition: 'all .2s'
                             }}>🔗 Combinar</button>
                         )}
@@ -239,10 +250,10 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
                       {[['series', 'Series', '1'], ['repeticiones', 'Reps', '1'], ['peso', 'Kg', '0.5'], ['descanso', 'Desc(s)', '5']].map(([field, lbl, step]) => (
                         <div key={field}>
-                          <label style={{ fontSize: 9, color: '#5b9bd5', letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
+                          <label style={{ fontSize: 11, color: '#5b9bd5', letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
                           <input type="number" min="0" step={step} value={ex[field]}
                             onChange={e => updateExercise(ex.id, field, e.target.value)}
-                            style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 16, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                            style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
                         </div>
                       ))}
                     </div>
@@ -254,7 +265,7 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
                         style={{
                           background: C.hi, color: C.muted,
                           border: `1px solid ${C.border}`,
-                          borderRadius: 12, padding: '3px 12px', fontSize: 10, fontWeight: 700,
+                          borderRadius: 12, padding: '3px 12px', fontSize: 12, fontWeight: 700,
                           cursor: 'pointer', transition: 'all .2s'
                         }}>🔗 Combinar</button>
                     </div>
@@ -272,7 +283,7 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
           <Card style={{ border: `1px solid ${A}` }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: A }}>Nuevo ejercicio</div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 10, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4 }}>NOMBRE</label>
+              <label style={{ fontSize: 12, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4 }}>NOMBRE</label>
               <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') addExercise() }}
                 placeholder="ej: Press banca, Remo con barra…"
@@ -287,10 +298,10 @@ export default function DayView({ objective, dayIndex, completions, onToggleComp
                 ['descanso', 'Desc(s)', form.descanso]
               ].map(([field, lbl, val]) => (
                 <div key={field}>
-                  <label style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
+                  <label style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
                   <input type="number" min="0" value={val}
                     onChange={e => setForm(p => ({ ...p, [field]: parseFloat(e.target.value) || 0 }))}
-                    style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 16, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                    style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
                 </div>
               ))}
             </div>

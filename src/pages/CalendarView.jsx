@@ -13,7 +13,7 @@ function toDateStr(date) {
   return date.toISOString().slice(0, 10)
 }
 
-export default function CalendarView({ data, onSelectObjectiveDay }) {
+export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompletion }) {
   const today = new Date()
   const [month, setMonth] = useState(today.getMonth())
   const [year, setYear] = useState(today.getFullYear())
@@ -59,7 +59,7 @@ export default function CalendarView({ data, onSelectObjectiveDay }) {
         if (!day || (!day.label && !day.exercises.length)) continue
         const completed = data.completions.some(c => c.objectiveId === obj.id && c.dayIndex === dayIdx && c.date === ds)
         if (!map[ds]) map[ds] = []
-        map[ds].push({ objective: obj, dayIndex: dayIdx, day, completed })
+        map[ds].push({ objective: obj, dayIndex: dayIdx, day, completed, inactive: obj.active === false })
       }
     }
     return map
@@ -101,6 +101,7 @@ export default function CalendarView({ data, onSelectObjectiveDay }) {
             {calendarDays.map((cd, i) => {
               const routines = routineMap[cd.dateStr]
               const hasRoutine = routines && routines.length > 0
+              const allInactive = hasRoutine && routines.every(r => r.inactive)
               const allCompleted = hasRoutine && routines.every(r => r.completed)
               const someCompleted = hasRoutine && routines.some(r => r.completed)
               const isToday = cd.dateStr === todayStr
@@ -113,18 +114,18 @@ export default function CalendarView({ data, onSelectObjectiveDay }) {
                     aspectRatio: '1', borderRadius: 8, display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', cursor: hasRoutine ? 'pointer' : 'default',
                     background: isSelected ? A : allCompleted ? A + '33' : isToday ? '#333' : 'transparent',
-                    border: isToday ? `2px solid ${A}` : hasRoutine ? `1px solid ${A}55` : `1px solid transparent`,
+                    border: isToday ? `2px solid ${A}` : hasRoutine && !allInactive ? `1px solid ${A}55` : hasRoutine && allInactive ? `1px solid #555` : `1px solid transparent`,
                     opacity: cd.currentMonth ? 1 : 0.3,
                     position: 'relative'
                   }}>
                   <span style={{
-                    fontSize: 12, fontWeight: isToday || hasRoutine ? 700 : 400,
+                    fontSize: 15, fontWeight: isToday || hasRoutine ? 700 : 400,
                     color: isSelected ? '#111' : allCompleted ? A : isToday ? C.text : hasRoutine ? C.text : C.muted
                   }}>{cd.date.getDate()}</span>
                   {hasRoutine && !isSelected && (
                     <div style={{ display: 'flex', gap: 2, marginTop: 2 }}>
                       {routines.map((r, ri) => (
-                        <div key={ri} style={{ width: 4, height: 4, borderRadius: 2, background: r.completed ? A : C.muted }} />
+                        <div key={ri} style={{ width: 4, height: 4, borderRadius: 2, background: r.inactive ? '#555' : r.completed ? A : C.muted }} />
                       ))}
                     </div>
                   )}
@@ -142,29 +143,82 @@ export default function CalendarView({ data, onSelectObjectiveDay }) {
             {new Date(selectedDate + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
           </div>
           {routineMap[selectedDate].map((r, i) => (
-            <Card key={i} onClick={() => onSelectObjectiveDay(r.objective.id, r.dayIndex)}
-              style={{ cursor: 'pointer', border: `1px solid ${r.completed ? A + '55' : C.border}` }}>
+            <Card key={i} onClick={() => onSelectObjectiveDay(r.objective.id, r.dayIndex, selectedDate)}
+              style={{ cursor: 'pointer', border: `1px solid ${r.completed ? A + '55' : C.border}`, opacity: r.inactive ? 0.5 : 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{r.objective.name}</div>
-                  <div style={{ fontSize: 12, color: A, marginTop: 2 }}>{r.day.label || DAY_NAMES[r.dayIndex]} · {r.day.exercises.length} ej.</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>
+                    {r.objective.name}
+                    {r.objective.startDate && r.objective.endDate && (
+                      <span style={{ fontSize: 13, color: '#fff', fontWeight: 400, marginLeft: 6 }}>
+                        {new Date(r.objective.startDate + 'T12:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} - {new Date(r.objective.endDate + 'T12:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 14, color: A, marginTop: 2 }}>{r.day.label || DAY_NAMES[r.dayIndex]} · {r.day.exercises.length} ej.</div>
                 </div>
-                <div style={{
-                  padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                  background: r.completed ? A : 'transparent',
-                  color: r.completed ? '#111' : A,
-                  border: r.completed ? 'none' : `1px solid ${A}`
-                }}>{r.completed ? 'Completado' : 'Pendiente'}</div>
+                <button onClick={e => { e.stopPropagation(); onToggleCompletion(r.objective.id, r.dayIndex, selectedDate) }}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    background: r.completed ? A : 'transparent',
+                    color: r.completed ? '#111' : A,
+                    border: r.completed ? 'none' : `1px solid ${A}`
+                  }}>{r.completed ? '✓ Completado' : 'Completar'}</button>
               </div>
               {r.day.exercises.length > 0 && (
                 <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                  {r.day.exercises.slice(0, 4).map(ex => (
-                    <div key={ex.id} style={{ fontSize: 11, color: C.muted, marginBottom: 2, display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{ex.nombre}</span>
-                      <span style={{ fontFamily: 'monospace', fontSize: 10 }}>{ex.series}x{ex.repeticiones} · {ex.peso}kg</span>
-                    </div>
-                  ))}
-                  {r.day.exercises.length > 4 && <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>+{r.day.exercises.length - 4} más</div>}
+                  <div style={{ display: 'flex', marginBottom: 6, paddingLeft: 16 }}>
+                    <span style={{ flex: 1, fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px' }}>EJERCICIO</span>
+                    <span style={{ fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px', width: 60, textAlign: 'center' }}>SERIE/REP</span>
+                    <span style={{ fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px', width: 45, textAlign: 'center' }}>PESO</span>
+                    <span style={{ fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px', width: 45, textAlign: 'right' }}>DESC</span>
+                  </div>
+                  {(() => {
+                    const rows = []
+                    let ei = 0
+                    while (ei < r.day.exercises.length) {
+                      const ex = r.day.exercises[ei]
+                      if (ex.group) {
+                        const groupId = ex.group
+                        const groupExs = []
+                        while (ei < r.day.exercises.length && r.day.exercises[ei].group === groupId) {
+                          groupExs.push(r.day.exercises[ei])
+                          ei++
+                        }
+                        const lastEx = groupExs[groupExs.length - 1]
+                        rows.push(
+                          <div key={groupId} style={{ display: 'flex', alignItems: 'stretch', marginBottom: 3 }}>
+                            <div style={{ width: 10, marginRight: 6, position: 'relative', flexShrink: 0 }}>
+                              <div style={{ position: 'absolute', left: 0, width: 2, background: A, top: 6, bottom: 6, borderRadius: 1 }} />
+                              <div style={{ position: 'absolute', left: 0, top: 6, width: 6, height: 2, background: A }} />
+                              <div style={{ position: 'absolute', left: 0, bottom: 6, width: 6, height: 2, background: A }} />
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                              {groupExs.map(gex => (
+                                <div key={gex.id} style={{ fontSize: 14, color: '#fff', marginBottom: 3, display: 'flex', alignItems: 'center' }}>
+                                  <span style={{ flex: 1 }}>{gex.nombre}</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 13, width: 60, textAlign: 'center' }}>{gex.series}x{gex.repeticiones}</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 13, width: 45, textAlign: 'center' }}>{gex.peso}kg</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: A, fontWeight: 700, width: 45, textAlign: 'right' }}>{gex.id === lastEx.id ? lastEx.descanso + 's' : ''}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      } else {
+                        rows.push(
+                          <div key={ex.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 3, paddingLeft: 16 }}>
+                            <span style={{ flex: 1, fontSize: 14, color: '#fff' }}>{ex.nombre}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 13, width: 60, textAlign: 'center' }}>{ex.series}x{ex.repeticiones}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 13, width: 45, textAlign: 'center' }}>{ex.peso}kg</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#5b9bd5', fontWeight: 700, width: 45, textAlign: 'right' }}>{ex.descanso}s</span>
+                          </div>
+                        )
+                        ei++
+                      }
+                    }
+                    return rows
+                  })()}
                 </div>
               )}
             </Card>

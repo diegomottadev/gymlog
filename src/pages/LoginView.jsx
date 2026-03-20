@@ -4,7 +4,7 @@ import { fbSignIn, fbRegister, fbResendVerification, fbReloadUser, fbSignOut } f
 import Btn from '../components/Btn'
 import Input from '../components/Input'
 
-export default function LoginView({ onDone }) {
+export default function LoginView({ onDone, onTrainerRegister }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [pass, setPass] = useState('')
@@ -75,11 +75,11 @@ export default function LoginView({ onDone }) {
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 20 }}>📧</div>
         <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Verificá tu email</div>
-        <div style={{ fontSize: 14, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14, color: '#fff', marginBottom: 8, lineHeight: 1.5 }}>
           Enviamos un link de verificación a
         </div>
         <div style={{ fontSize: 15, fontWeight: 700, color: A, marginBottom: 20 }}>{email}</div>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14, color: '#fff', marginBottom: 24, lineHeight: 1.5 }}>
           Abrí tu correo y hacé clic en el link. Esta página se actualizará automáticamente.
         </div>
 
@@ -94,7 +94,7 @@ export default function LoginView({ onDone }) {
         </Btn>
 
         <span onClick={handleBackToLogin}
-          style={{ color: C.muted, cursor: 'pointer', fontSize: 13, marginTop: 8 }}>
+          style={{ color: '#fff', cursor: 'pointer', fontSize: 13, marginTop: 8 }}>
           ← Volver al inicio de sesión
         </span>
       </div>
@@ -103,28 +103,36 @@ export default function LoginView({ onDone }) {
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px', minHeight: '100vh' }}>
-      <div style={{ fontSize: 10, color: C.muted, letterSpacing: '2px', marginBottom: 24 }}>GYM TRACKER</div>
+      <div style={{ fontSize: 12, color: '#fff', letterSpacing: '2px', marginBottom: 24 }}>GYM TRACKER</div>
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
         {mode === 'login' ? 'Iniciar sesión 💪' : 'Crear cuenta 💪'}
       </div>
-      <div style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>
+      <div style={{ fontSize: 14, color: '#fff', marginBottom: 24 }}>
         Tus entrenamientos sincronizados en todos tus dispositivos.
       </div>
-      <label style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4 }}>EMAIL</label>
+      <label style={{ fontSize: 14, color: '#fff', letterSpacing: '1px', display: 'block', marginBottom: 6 }}>EMAIL</label>
       <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" />
-      <label style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4 }}>CONTRASEÑA</label>
+      <label style={{ fontSize: 14, color: '#fff', letterSpacing: '1px', display: 'block', marginBottom: 6 }}>CONTRASEÑA</label>
       <Input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="mínimo 6 caracteres" />
       {err && <div style={{ color: C.danger, fontSize: 13, marginBottom: 12, padding: '10px 14px', background: 'rgba(255,85,85,.1)', borderRadius: 10, border: `1px solid ${C.danger}` }}>{err}</div>}
       <Btn onClick={handle} disabled={loading} style={{ width: '100%', padding: 14, fontSize: 15, borderRadius: 14, marginTop: 4 }}>
         {loading ? '...' : (mode === 'login' ? 'Entrar →' : 'Crear cuenta →')}
       </Btn>
-      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: C.muted }}>
+      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 14, color: '#fff' }}>
         {mode === 'login' ? '¿No tenés cuenta? ' : '¿Ya tenés cuenta? '}
         <span onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErr('') }}
           style={{ color: A, cursor: 'pointer', fontWeight: 700 }}>
           {mode === 'login' ? 'Registrate' : 'Iniciá sesión'}
         </span>
       </div>
+      {onTrainerRegister && (
+        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 13 }}>
+          <span onClick={onTrainerRegister}
+            style={{ color: '#fff', cursor: 'pointer', textDecoration: 'underline' }}>
+            Registrarse como Personal Trainer
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { toDay, getTodayDayIndex, getWeekRange } from '../lib/helpers'
 import Card from '../components/Card'
 import BackHeader from '../components/BackHeader'
 
-export default function ObjectiveView({ objective, completions, onBack, onUpdate, onSelectDay }) {
+export default function ObjectiveView({ objective, completions, onBack, onUpdate, onSelectDay, readOnly = false }) {
   if (!objective) return null
   const { mon, sun } = useMemo(() => getWeekRange(), [])
   const today = toDay()
@@ -34,9 +34,11 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
 
   const swapDays = (fromIdx, toIdx) => {
     const newDays = [...objective.days]
-    const temp = newDays[fromIdx]
-    newDays[fromIdx] = newDays[toIdx]
-    newDays[toIdx] = temp
+    // Swap all content but keep dayNumber in place
+    const fromContent = { label: newDays[fromIdx].label, exercises: newDays[fromIdx].exercises, rest: newDays[fromIdx].rest }
+    const toContent = { label: newDays[toIdx].label, exercises: newDays[toIdx].exercises, rest: newDays[toIdx].rest }
+    newDays[fromIdx] = { ...newDays[fromIdx], ...toContent }
+    newDays[toIdx] = { ...newDays[toIdx], ...fromContent }
     onUpdate({ ...objective, days: newDays })
     setMovingDay(null)
   }
@@ -62,35 +64,36 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
         ) : (
           <>
             <div style={{ fontSize: 20, fontWeight: 800, flex: 1 }}>{objective.name}</div>
-            <button onClick={() => setEditingName(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
+            {!readOnly && <button onClick={() => setEditingName(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>}
           </>
         )}
       </div>
 
-      <div style={{ padding: '0 20px 8px' }}>
+      {!readOnly && <div style={{ padding: '0 20px 8px' }}>
         <Card>
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4 }}>INICIO</label>
+              <label style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', display: 'block', marginBottom: 4 }}>INICIO</label>
               <input type="date" value={startDate} onChange={e => saveDate('startDate', e.target.value)}
                 style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 12, outline: 'none', colorScheme: 'dark' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4 }}>FIN</label>
+              <label style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', display: 'block', marginBottom: 4 }}>FIN</label>
               <input type="date" value={endDate} onChange={e => saveDate('endDate', e.target.value)}
                 style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 12, outline: 'none', colorScheme: 'dark' }} />
             </div>
           </div>
         </Card>
-      </div>
+      </div>}
 
       <div style={{ padding: '0 20px 8px' }}>
         <Card style={{ background: C.hi }}>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 10 }}>PROGRESO SEMANAL</div>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 10 }}>PROGRESO SEMANAL</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {objective.days.map((day, idx) => {
-              const hasContent = day.label || day.exercises.length > 0
+              const isRest = day.rest
+              const hasContent = day.label || day.exercises.length > 0 || isRest
               const done = completions.some(c => c.objectiveId === objective.id && c.dayIndex === idx && c.date >= mon && c.date <= sun)
               const isToday = idx === getTodayDayIndex()
               return (
@@ -98,10 +101,10 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
                   <div style={{
                     width: '100%', height: 32, borderRadius: 8, fontSize: 11, fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: done ? A : isToday ? '#333' : C.card,
-                    color: done ? '#111' : isToday ? C.text : hasContent ? C.muted : '#333',
-                    border: `1px solid ${done ? A : isToday ? A : C.border}`
-                  }}>{done ? '✓' : DAY_NAMES[idx].slice(0, 2)}</div>
+                    background: isRest ? '#222' : done ? A : isToday ? '#333' : C.card,
+                    color: isRest ? '#666' : done ? '#111' : isToday ? C.text : hasContent ? C.muted : '#333',
+                    border: `1px solid ${isRest ? '#333' : done ? A : isToday ? A : C.border}`
+                  }}>{isRest ? '—' : done ? '✓' : DAY_NAMES[idx].slice(0, 2)}</div>
                 </div>
               )
             })}
@@ -111,45 +114,66 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
 
       <div style={{ padding: '0 20px' }}>
         {objective.days.map((day, idx) => {
-          const hasContent = day.label || day.exercises.length > 0
+          const isRest = day.rest
+          const hasContent = day.label || day.exercises.length > 0 || isRest
           const doneToday = completions.some(c => c.objectiveId === objective.id && c.dayIndex === idx && c.date === today)
           const doneWeek = completions.some(c => c.objectiveId === objective.id && c.dayIndex === idx && c.date >= mon && c.date <= sun)
+
+          const toggleRest = (e) => {
+            e.stopPropagation()
+            const newDays = objective.days.map((d, i) => i === idx ? { ...d, rest: !d.rest } : d)
+            onUpdate({ ...objective, days: newDays })
+          }
+
           return (
-            <Card key={idx} onClick={() => onSelectDay(idx)} style={{ opacity: hasContent ? 1 : 0.6 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasContent ? 12 : 0 }}>
+            <Card key={idx} onClick={() => !isRest && onSelectDay(idx)} style={{ opacity: hasContent ? 1 : 0.6, cursor: isRest ? 'default' : 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasContent && !isRest ? 12 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{
-                    minWidth: 36, height: 36, borderRadius: 10, fontSize: 13, fontWeight: 900,
+                    minWidth: 42, height: 42, borderRadius: 12, fontSize: 16, fontWeight: 900,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: doneWeek ? A : hasContent ? C.hi : 'transparent', color: doneWeek ? '#111' : hasContent ? C.text : C.muted,
-                    border: doneWeek ? 'none' : `1px solid ${C.border}`
-                  }}>{doneWeek ? '✓' : idx + 1}</div>
+                    background: isRest ? '#333' : doneWeek ? A : hasContent ? C.hi : 'transparent',
+                    color: isRest ? '#888' : doneWeek ? '#111' : hasContent ? C.text : C.muted,
+                    border: doneWeek && !isRest ? 'none' : `1px solid ${isRest ? '#444' : C.border}`
+                  }}>{isRest ? '😴' : doneWeek ? '✓' : idx + 1}</div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: hasContent ? C.text : C.muted }}>{DAY_NAMES[idx]}</div>
-                    {day.label && <div style={{ fontSize: 12, color: A, marginTop: 2 }}>{day.label}</div>}
+                    <div style={{ fontSize: 15, fontWeight: 700, color: isRest ? '#888' : hasContent ? C.text : C.muted }}>{DAY_NAMES[idx]}</div>
+                    {isRest && <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>Descanso</div>}
+                    {!isRest && day.label && <div style={{ fontSize: 13, color: A, marginTop: 2 }}>{day.label}</div>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {hasContent && doneToday && <span style={{ fontSize: 10, color: A, fontWeight: 700 }}>HOY</span>}
-                  {hasContent && (
+                  {hasContent && !isRest && doneToday && <span style={{ fontSize: 12, color: A, fontWeight: 700 }}>HOY</span>}
+                  {hasContent && !isRest && !readOnly && (
                     <button onClick={e => { e.stopPropagation(); setMovingDay(idx) }}
-                      style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 10, color: C.muted, cursor: 'pointer', fontWeight: 700 }}>
+                      style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', fontSize: 14, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
                       ⇄
                     </button>
                   )}
-                  <div style={{ fontSize: 11, color: C.muted }}>{day.exercises.length ? day.exercises.length + ' ej.' : 'Sin ejercicios'}</div>
+                  {!readOnly && (
+                    <button onClick={toggleRest}
+                      style={{ background: isRest ? A : C.hi, border: `1px solid ${isRest ? A : C.border}`, borderRadius: 8, padding: '6px 10px', fontSize: 13, color: isRest ? '#111' : '#fff', cursor: 'pointer', fontWeight: 700 }}>
+                      {isRest ? '✓ Descanso' : '😴'}
+                    </button>
+                  )}
+                  {!isRest && <div style={{ fontSize: 13, color: '#fff' }}>{day.exercises.length ? day.exercises.length + ' ej.' : 'Sin ejercicios'}</div>}
                 </div>
               </div>
 
               {day.exercises.length > 0 && (
                 <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 16 }}>
+                    <span style={{ flex: 1, fontSize: 11, color: A, fontWeight: 700, letterSpacing: '1px' }}>EJERCICIO</span>
+                    <span style={{ fontSize: 11, color: A, fontWeight: 700, letterSpacing: '1px', width: 70, textAlign: 'center' }}>SERIE/REP</span>
+                    <span style={{ fontSize: 11, color: A, fontWeight: 700, letterSpacing: '1px', width: 50, textAlign: 'center' }}>PESO</span>
+                    <span style={{ fontSize: 11, color: A, fontWeight: 700, letterSpacing: '1px', width: 50, textAlign: 'right' }}>DESC</span>
+                  </div>
                   {(() => {
                     const rows = []
                     let i = 0
                     while (i < day.exercises.length) {
                       const ex = day.exercises[i]
                       if (ex.group) {
-                        // Collect all exercises in this group
                         const groupExs = []
                         const groupId = ex.group
                         while (i < day.exercises.length && day.exercises[i].group === groupId) {
@@ -159,35 +183,30 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
                         const lastEx = groupExs[groupExs.length - 1]
                         rows.push(
                           <div key={groupId} style={{ display: 'flex', alignItems: 'stretch', marginBottom: 3 }}>
-                            {/* Bracket */}
                             <div style={{ width: 10, marginRight: 6, position: 'relative', flexShrink: 0 }}>
                               <div style={{ position: 'absolute', left: 0, width: 2, background: A, top: 6, bottom: 6, borderRadius: 1 }} />
                               <div style={{ position: 'absolute', left: 0, top: 6, width: 6, height: 2, background: A }} />
                               <div style={{ position: 'absolute', left: 0, bottom: 6, width: 6, height: 2, background: A }} />
                             </div>
-                            {/* Exercises */}
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                               {groupExs.map(gex => (
-                                <div key={gex.id} style={{ fontSize: 12, color: C.muted, marginBottom: 2, display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>{gex.nombre}</span>
-                                  <span style={{ color: C.text, fontFamily: 'monospace', fontSize: 11 }}>{gex.series}x{gex.repeticiones} · {gex.peso}kg</span>
+                                <div key={gex.id} style={{ fontSize: 15, color: '#fff', marginBottom: 3, display: 'flex', alignItems: 'center' }}>
+                                  <span style={{ flex: 1 }}>{gex.nombre}</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 14, width: 70, textAlign: 'center' }}>{gex.series}x{gex.repeticiones}</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 14, width: 50, textAlign: 'center' }}>{gex.peso}kg</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 14, color: A, fontWeight: 700, width: 50, textAlign: 'right' }}>{gex.id === lastEx.id ? lastEx.descanso + 's' : ''}</span>
                                 </div>
                               ))}
-                            </div>
-                            {/* Rest time column */}
-                            <div style={{ display: 'flex', alignItems: 'center', marginLeft: 8, flexShrink: 0 }}>
-                              <span style={{ fontSize: 10, color: A, fontWeight: 700, fontFamily: 'monospace' }}>{lastEx.descanso}s</span>
                             </div>
                           </div>
                         )
                       } else {
                         rows.push(
-                          <div key={ex.id} style={{ display: 'flex', marginBottom: 3 }}>
-                            <div style={{ width: 10, marginRight: 6, flexShrink: 0 }} />
-                            <div style={{ flex: 1, fontSize: 12, color: C.muted, display: 'flex', justifyContent: 'space-between' }}>
-                              <span>{ex.nombre}</span>
-                              <span style={{ color: C.text, fontFamily: 'monospace', fontSize: 11 }}>{ex.series}x{ex.repeticiones} · {ex.peso}kg · <span style={{ color: '#5b9bd5' }}>{ex.descanso}s</span></span>
-                            </div>
+                          <div key={ex.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 3, paddingLeft: 16 }}>
+                            <span style={{ flex: 1, fontSize: 15, color: '#fff' }}>{ex.nombre}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 14, width: 70, textAlign: 'center' }}>{ex.series}x{ex.repeticiones}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 14, width: 50, textAlign: 'center' }}>{ex.peso}kg</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 14, color: '#5b9bd5', fontWeight: 700, width: 50, textAlign: 'right' }}>{ex.descanso}s</span>
                           </div>
                         )
                         i++
@@ -207,8 +226,8 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
           onClick={() => setMovingDay(null)}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, maxWidth: 320, width: '100%' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Mover rutina</div>
-            <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Mover rutina</div>
+            <div style={{ fontSize: 14, color: '#fff', marginBottom: 16 }}>
               Mover <span style={{ color: A, fontWeight: 700 }}>{DAY_NAMES[movingDay]}</span>{objective.days[movingDay].label ? ` (${objective.days[movingDay].label})` : ''} a:
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -219,22 +238,22 @@ export default function ObjectiveView({ objective, completions, onBack, onUpdate
                   <button key={idx} onClick={() => swapDays(movingDay, idx)}
                     style={{
                       background: C.hi, border: `1px solid ${C.border}`, borderRadius: 10,
-                      padding: '12px 14px', cursor: 'pointer', display: 'flex',
+                      padding: '14px 16px', cursor: 'pointer', display: 'flex',
                       justifyContent: 'space-between', alignItems: 'center'
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{DAY_NAMES[idx]}</span>
-                      {d.label && <span style={{ fontSize: 11, color: A }}>{d.label}</span>}
+                      <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{DAY_NAMES[idx]}</span>
+                      {d.label && <span style={{ fontSize: 13, color: A }}>{d.label}</span>}
                     </div>
-                    <span style={{ fontSize: 10, color: C.muted }}>
-                      {hasContent ? `${d.exercises.length} ej. ⇄` : 'Vacío →'}
+                    <span style={{ fontSize: 13, color: d.rest ? '#888' : '#fff' }}>
+                      {d.rest ? '😴 Descanso' : hasContent ? `${d.exercises.length} ej. ⇄` : 'Vacío →'}
                     </span>
                   </button>
                 )
               })}
             </div>
             <button onClick={() => setMovingDay(null)}
-              style={{ width: '100%', marginTop: 12, padding: 10, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+              style={{ width: '100%', marginTop: 12, padding: 12, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, color: '#fff', fontSize: 14, cursor: 'pointer' }}>
               Cancelar
             </button>
           </div>

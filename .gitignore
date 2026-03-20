@@ -26,3 +26,7 @@ build/
 # Logs
 *.log
 npm-debug.log*
+
+# Secrets / docs with keys
+readme-mp-stripe.md
+functions/

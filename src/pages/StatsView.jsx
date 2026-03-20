@@ -1,106 +1,239 @@
-import { useState, useMemo } from 'react'
-import { A, C } from '../lib/constants'
-import { vol } from '../lib/helpers'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { useMemo } from 'react'
+import { A, C, DAY_NAMES } from '../lib/constants'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import Card from '../components/Card'
 
-export default function StatsView({ data }) {
-  const [selEx, setSelEx] = useState('')
-  const exNames = useMemo(() => { const s = new Set(); data.workouts.forEach(w => w.exercises.forEach(e => s.add(e.name))); return [...s].sort() }, [data.workouts])
-  const volData = useMemo(() => {
-    const map = {}
-    data.workouts.forEach(w => { if (!map[w.date]) map[w.date] = 0; map[w.date] += vol(w) })
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).slice(-20).map(([d, v]) => ({ d: d.slice(5), v }))
-  }, [data.workouts])
-  const freqData = useMemo(() => {
-    const map = {}
-    data.workouts.forEach(w => w.exercises.forEach(e => { map[e.name] = (map[e.name] || 0) + 1 }))
-    return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 8).map(([n, c]) => ({ n: n.length > 14 ? n.slice(0, 14) + '…' : n, c }))
-  }, [data.workouts])
-  const prData = useMemo(() => {
-    if (!selEx) return []
-    return data.workouts.filter(w => w.exercises.some(e => e.name === selEx)).sort((a, b) => a.date.localeCompare(b.date)).map(w => {
-      const ex = w.exercises.find(e => e.name === selEx)
-      return { d: w.date.slice(5), kg: ex.sets.length ? Math.max(...ex.sets.map(s => s.w)) : 0 }
-    })
-  }, [data.workouts, selEx])
-  const prs = useMemo(() => {
-    const m = {}
-    data.workouts.forEach(w => w.exercises.forEach(e => { const mx = e.sets.length ? Math.max(...e.sets.map(s => s.w)) : 0; if (!m[e.name] || mx > m[e.name]) m[e.name] = mx }))
-    return Object.entries(m).sort(([, a], [, b]) => b - a)
-  }, [data.workouts])
+function getWeekId(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  const dow = d.getDay()
+  const diff = dow === 0 ? 6 : dow - 1
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - diff)
+  return mon.toISOString().slice(0, 10)
+}
 
-  if (!data.workouts.length) return (
-    <div style={{ padding: '60px 20px', textAlign: 'center', color: C.muted }}>
+function getMonthLabel(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+  return months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2)
+}
+
+export default function StatsView({ data }) {
+  const completions = data.completions || []
+  const objectives = data.objectives || []
+
+  // Active days count (non-rest days with content) - only active objectives
+  const activeDays = useMemo(() => {
+    return objectives.filter(obj => obj.active !== false).reduce((total, obj) => {
+      return total + obj.days.filter(d => !d.rest && (d.label || d.exercises.length)).length
+    }, 0)
+  }, [objectives])
+
+  // Summary stats
+  const summary = useMemo(() => {
+    if (!completions.length) return null
+    const weekMap = {}
+    completions.forEach(c => {
+      const wk = getWeekId(c.date)
+      if (!weekMap[wk]) weekMap[wk] = new Set()
+      weekMap[wk].add(c.dayIndex)
+    })
+    const weekCounts = Object.values(weekMap).map(s => s.size)
+    const totalWeeks = weekCounts.length
+    const avg = totalWeeks ? (weekCounts.reduce((a, b) => a + b, 0) / totalWeeks).toFixed(1) : 0
+    const best = Math.max(...weekCounts)
+    return { total: completions.length, avgPerWeek: avg, bestWeek: best, totalWeeks }
+  }, [completions])
+
+  // Weekly adherence (last 8 weeks)
+  const weeklyAdherence = useMemo(() => {
+    if (!completions.length || !activeDays) return []
+    const weekMap = {}
+    completions.forEach(c => {
+      const wk = getWeekId(c.date)
+      if (!weekMap[wk]) weekMap[wk] = new Set()
+      weekMap[wk].add(c.dayIndex)
+    })
+    return Object.entries(weekMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-8)
+      .map(([wk, days]) => {
+        const d = new Date(wk + 'T12:00:00')
+        const label = `${d.getDate()}/${d.getMonth() + 1}`
+        const pct = Math.min(100, Math.round((days.size / activeDays) * 100))
+        return { semana: label, adherencia: pct }
+      })
+  }, [completions, activeDays])
+
+  // Monthly completions
+  const monthlyData = useMemo(() => {
+    if (!completions.length) return []
+    const map = {}
+    completions.forEach(c => {
+      const key = c.date.slice(0, 7)
+      if (!map[key]) map[key] = new Set()
+      map[key].add(c.objectiveId + '-' + c.dayIndex + '-' + c.date)
+    })
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([key, s]) => ({ mes: getMonthLabel(key + '-01'), completadas: s.size }))
+  }, [completions])
+
+  // Day distribution (Mon-Sun)
+  const dayDistribution = useMemo(() => {
+    if (!completions.length) return []
+    const counts = [0, 0, 0, 0, 0, 0, 0]
+    completions.forEach(c => { counts[c.dayIndex] = (counts[c.dayIndex] || 0) + 1 })
+    return DAY_NAMES.map((name, i) => ({ dia: name.slice(0, 3), completadas: counts[i] }))
+  }, [completions])
+
+  // Objective progress - only active objectives
+  const objectiveProgress = useMemo(() => {
+    return objectives.filter(obj => obj.active !== false).map(obj => {
+      if (!obj.startDate || !obj.endDate) return null
+      const start = new Date(obj.startDate + 'T12:00:00')
+      const end = new Date(obj.endDate + 'T12:00:00')
+      const totalWeeks = Math.max(1, Math.ceil((end - start) / (7 * 24 * 60 * 60 * 1000)))
+      const activeDaysObj = obj.days.filter(d => !d.rest && (d.label || d.exercises.length)).length
+      const totalExpected = totalWeeks * activeDaysObj
+      const completed = completions.filter(c => c.objectiveId === obj.id).length
+      const pct = totalExpected ? Math.min(100, Math.round((completed / totalExpected) * 100)) : 0
+      const now = new Date()
+      const elapsedWeeks = Math.max(1, Math.ceil((now - start) / (7 * 24 * 60 * 60 * 1000)))
+      return { name: obj.name, pct, completed, totalExpected, elapsedWeeks, totalWeeks }
+    }).filter(Boolean)
+  }, [objectives, completions])
+
+  // Inactive objectives history
+  const inactiveProgress = useMemo(() => {
+    return objectives.filter(obj => obj.active === false).map(obj => {
+      if (!obj.startDate || !obj.endDate) return null
+      const start = new Date(obj.startDate + 'T12:00:00')
+      const end = new Date(obj.endDate + 'T12:00:00')
+      const totalWeeks = Math.max(1, Math.ceil((end - start) / (7 * 24 * 60 * 60 * 1000)))
+      const activeDaysObj = obj.days.filter(d => !d.rest && (d.label || d.exercises.length)).length
+      const totalExpected = totalWeeks * activeDaysObj
+      const completed = completions.filter(c => c.objectiveId === obj.id).length
+      const pct = totalExpected ? Math.min(100, Math.round((completed / totalExpected) * 100)) : 0
+      return { name: obj.name, pct, completed, totalExpected, totalWeeks }
+    }).filter(Boolean)
+  }, [objectives, completions])
+
+  if (!completions.length) return (
+    <div style={{ padding: '60px 20px', textAlign: 'center' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sin datos todavía</div>
-      <div style={{ fontSize: 13 }}>Registrá entrenamientos para ver estadísticas</div>
+      <div style={{ fontSize: 14, color: '#fff' }}>Completá rutinas para ver estadísticas</div>
     </div>
   )
 
-  const tt = { contentStyle: { background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }, labelStyle: { color: C.text } }
+  const tt = { contentStyle: { background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13 }, labelStyle: { color: C.text } }
 
   return (
     <div>
       <div style={{ padding: '24px 20px 12px', fontSize: 20, fontWeight: 800 }}>Estadísticas</div>
 
-      {volData.length > 0 && <div style={{ padding: '0 20px 8px' }}>
-        <Card>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 14 }}>VOLUMEN POR SESIÓN (kg)</div>
-          <ResponsiveContainer width="100%" height={170}>
-            <LineChart data={volData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="d" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} />
-              <Tooltip {...tt} formatter={v => [v.toLocaleString() + 'kg', 'Volumen']} />
-              <Line type="monotone" dataKey="v" stroke={A} strokeWidth={2.5} dot={{ fill: A, r: 3, strokeWidth: 0 }} />
-            </LineChart>
-          </ResponsiveContainer>
+      {/* Summary cards */}
+      {summary && <div style={{ padding: '0 20px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <Card style={{ marginBottom: 0 }}>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>TOTAL</div>
+          <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: A, marginTop: 4 }}>{summary.total}</div>
+        </Card>
+        <Card style={{ marginBottom: 0 }}>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>PROMEDIO</div>
+          <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: A, marginTop: 4 }}>{summary.avgPerWeek}<span style={{ fontSize: 12 }}>/sem</span></div>
+        </Card>
+        <Card style={{ marginBottom: 0 }}>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>MEJOR</div>
+          <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: A, marginTop: 4 }}>{summary.bestWeek}<span style={{ fontSize: 12 }}>/sem</span></div>
         </Card>
       </div>}
 
-      {freqData.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+      {/* Weekly adherence */}
+      {weeklyAdherence.length > 0 && <div style={{ padding: '0 20px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 14 }}>EJERCICIOS MÁS FRECUENTES</div>
-          <ResponsiveContainer width="100%" height={Math.max(150, freqData.length * 38)}>
-            <BarChart data={freqData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
-              <YAxis type="category" dataKey="n" tick={{ fontSize: 11, fill: C.muted }} width={100} tickLine={false} axisLine={false} />
-              <Tooltip {...tt} formatter={v => [v + ' veces', 'Frecuencia']} />
-              <Bar dataKey="c" fill={A} radius={[0, 5, 5, 0]} />
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>ADHERENCIA SEMANAL (%)</div>
+          <ResponsiveContainer width="100%" height={170}>
+            <BarChart data={weeklyAdherence}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="semana" tick={{ fontSize: 11, fill: '#fff' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#fff' }} tickLine={false} axisLine={false} domain={[0, 100]} />
+              <Tooltip {...tt} formatter={v => [v + '%', 'Adherencia']} />
+              <Bar dataKey="adherencia" fill={A} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
       </div>}
 
-      {exNames.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+      {/* Day distribution */}
+      {dayDistribution.length > 0 && <div style={{ padding: '0 20px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 10 }}>PROGRESIÓN DE PESO</div>
-          <select value={selEx} onChange={e => setSelEx(e.target.value)}
-            style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 14, marginBottom: 14, outline: 'none' }}>
-            <option value="">Seleccionar ejercicio…</option>
-            {exNames.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-          {prData.length > 1 ? <ResponsiveContainer width="100%" height={170}>
-            <LineChart data={prData}>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>DISTRIBUCIÓN POR DÍA</div>
+          <ResponsiveContainer width="100%" height={170}>
+            <BarChart data={dayDistribution}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="d" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} />
-              <Tooltip {...tt} formatter={v => [v + 'kg', 'Máx']} />
-              <Line type="monotone" dataKey="kg" stroke={A} strokeWidth={2.5} dot={{ fill: A, r: 4, strokeWidth: 0 }} />
-            </LineChart>
-          </ResponsiveContainer> : selEx && <div style={{ color: C.muted, fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Necesitás 2+ sesiones con este ejercicio</div>}
+              <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#fff' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#fff' }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip {...tt} formatter={v => [v, 'Completadas']} />
+              <Bar dataKey="completadas" fill={A} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </Card>
       </div>}
 
-      {prs.length > 0 && <div style={{ padding: '0 20px 24px' }}>
+      {/* Monthly completions */}
+      {monthlyData.length > 0 && <div style={{ padding: '0 20px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 14 }}>🏆 RÉCORDS PERSONALES</div>
-          {prs.map(([n, kg]) => (
-            <div key={n} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 14 }}>{n}</div>
-              <div style={{ fontSize: 16, fontFamily: 'monospace', fontWeight: 900, color: A }}>{kg}kg</div>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>COMPLETADAS POR MES</div>
+          <ResponsiveContainer width="100%" height={170}>
+            <BarChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#fff' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#fff' }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip {...tt} formatter={v => [v, 'Completadas']} />
+              <Bar dataKey="completadas" fill={A} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>}
+
+      {/* Objective progress */}
+      {objectiveProgress.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+        <Card>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>PROGRESO DE OBJETIVOS</div>
+          {objectiveProgress.map((op, i) => (
+            <div key={i} style={{ marginBottom: i < objectiveProgress.length - 1 ? 16 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{op.name}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: A }}>{op.pct}%</span>
+              </div>
+              <div style={{ width: '100%', height: 10, background: C.hi, borderRadius: 5, overflow: 'hidden' }}>
+                <div style={{ width: op.pct + '%', height: '100%', background: A, borderRadius: 5, transition: 'width .3s' }} />
+              </div>
+              <div style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>
+                {op.completed}/{op.totalExpected} rutinas · Semana {op.elapsedWeeks}/{op.totalWeeks}
+              </div>
+            </div>
+          ))}
+        </Card>
+      </div>}
+
+      {inactiveProgress.length > 0 && <div style={{ padding: '0 20px 24px' }}>
+        <Card style={{ opacity: 0.7 }}>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>HISTORIAL DE OBJETIVOS</div>
+          {inactiveProgress.map((op, i) => (
+            <div key={i} style={{ marginBottom: i < inactiveProgress.length - 1 ? 16 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{op.name}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.muted }}>{op.pct}%</span>
+              </div>
+              <div style={{ width: '100%', height: 10, background: C.hi, borderRadius: 5, overflow: 'hidden' }}>
+                <div style={{ width: op.pct + '%', height: '100%', background: C.muted, borderRadius: 5 }} />
+              </div>
+              <div style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>
+                {op.completed}/{op.totalExpected} rutinas · {op.totalWeeks} semanas
+              </div>
             </div>
           ))}
         </Card>
