@@ -57,11 +57,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    // One-time cache bust v2 - force fresh data from Firestore
-    if (!localStorage.getItem('gymlog_v2_clean')) {
-      localStorage.removeItem('gymlog')
-      localStorage.setItem('gymlog_v2_clean', '1')
-    }
+    // cleanup old flags
+    localStorage.removeItem('gymlog_v2_clean')
     try { initFirebaseApp(FIREBASE_CONFIG) } catch (e) { console.error(e) }
     fbOnAuthChange(async user => {
       if (!user) { setPhase('login'); return }
@@ -70,13 +67,21 @@ export default function App() {
       setUserEmail(user.email || '')
       setSyncStatus('syncing')
 
-      // Load user data - remote is source of truth
+      // Load user data - merge remote with local, local completions win
       const remote = await fbLoad()
+      const local = loadLocal()
       let userData
-      if (remote) {
+      if (remote && local.objectives?.length) {
+        userData = {
+          workouts: remote.workouts || local.workouts || [],
+          objectives: remote.objectives || local.objectives || [],
+          completions: local.completions || remote.completions || [],
+          reminder: remote.reminder || local.reminder || { enabled: false, time: '09:00' }
+        }
+      } else if (remote) {
         userData = remote
       } else {
-        userData = loadLocal()
+        userData = local
       }
       // Clean up completions: remove orphans, duplicates, and date mismatches
       const objIds = new Set((userData.objectives || []).map(o => o.id))
@@ -208,14 +213,17 @@ export default function App() {
   }, [updateData])
 
   const handleToggleCompletion = useCallback((objectiveId, dayIndex, date) => {
-    updateData(prev => {
+    setData(prev => {
       const exists = prev.completions.find(c => c.objectiveId === objectiveId && c.dayIndex === dayIndex && c.date === date)
       const newCompletions = exists
         ? prev.completions.filter(c => c.id !== exists.id)
         : [...prev.completions, { id: gid(), objectiveId, dayIndex, date }]
-      return { ...prev, completions: newCompletions }
+      const newData = { ...prev, completions: newCompletions }
+      persist(newData)
+      fbSave(newData) // immediate save, no debounce
+      return newData
     })
-  }, [updateData])
+  }, [])
 
   const handleUpdateReminder = useCallback(reminder => {
     updateData(prev => ({ ...prev, reminder }))
