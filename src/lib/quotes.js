@@ -163,8 +163,15 @@ const quotes = [
 ]
 
 export function getTodayQuote() {
+  // Seeded random basado en la fecha - cambia cada día, distinto orden cada día
   const now = new Date()
-  const idx = (now.getFullYear() * 366 + now.getMonth() * 31 + now.getDate()) % quotes.length
+  const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate()
+  // Simple hash para generar pseudo-random desde la fecha
+  let hash = seed
+  hash = ((hash >> 16) ^ hash) * 0x45d9f3b
+  hash = ((hash >> 16) ^ hash) * 0x45d9f3b
+  hash = (hash >> 16) ^ hash
+  const idx = Math.abs(hash) % quotes.length
   return quotes[idx]
 }
 
