@@ -15,10 +15,11 @@ export default function HomeView({ data, sharedObjectives = [], onSelectObjectiv
     const activeDays = data.objectives.filter(obj => obj.active !== false).reduce((total, obj) => {
       return total + obj.days.filter(d => !d.rest && (d.label || d.exercises.length)).length
     }, 0)
-    if (activeDays === 0) return { percent: 0, completed: 0, total: 0 }
+    if (activeDays === 0) return { percent: 0, completed: 0, total: 0, weekCompleted: 0 }
     const weekCompletions = data.completions.filter(c => c.date >= mon && c.date <= sun)
-    const uniqueDays = new Set(weekCompletions.map(c => c.dayIndex)).size
-    return { percent: Math.min(100, Math.round((uniqueDays / activeDays) * 100)), completed: uniqueDays, total: activeDays }
+    const uniqueWeekDays = new Set(weekCompletions.map(c => c.dayIndex)).size
+    const totalCompleted = data.completions.length
+    return { percent: Math.min(100, Math.round((uniqueWeekDays / activeDays) * 100)), completed: totalCompleted, total: activeDays, weekCompleted: uniqueWeekDays }
   }, [data.objectives, data.completions, mon, sun])
 
   const weekDays = useMemo(() => {
@@ -78,8 +79,8 @@ export default function HomeView({ data, sharedObjectives = [], onSelectObjectiv
           <div style={{ fontSize: 26, fontWeight: 800 }}>Tu progreso 💪</div>
         </div>
         <div style={{ textAlign: 'center', background: C.card, border: `2px solid ${adherence.percent >= 80 ? A : C.border}`, borderRadius: 16, padding: '10px 18px' }}>
-          <div style={{ fontSize: 30, fontWeight: 900, color: adherence.percent >= 80 ? A : C.text, fontFamily: 'monospace', lineHeight: 1 }}>{adherence.percent}%</div>
-          <div style={{ fontSize: 10, color: '#fff', marginTop: 2 }}>{adherence.completed}/{adherence.total} esta semana</div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: adherence.percent >= 80 ? A : C.text, fontFamily: 'monospace', lineHeight: 1 }}>{adherence.completed}</div>
+          <div style={{ fontSize: 10, color: '#fff', marginTop: 2 }}>completadas</div>
         </div>
       </div>
 
