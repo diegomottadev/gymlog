@@ -84,12 +84,12 @@ export default function HomeView({ data, sharedObjectives = [], onSelectObjectiv
       </div>
 
       <div style={{ padding: '0 20px 8px' }}>
-        <Card style={{ border: `1px solid ${A}33` }}>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 8 }}>{DAY_NAMES[todayIdx].toUpperCase()}</div>
-          <div style={{ marginBottom: todayRoutines.length > 0 ? 12 : 0 }}>
-            <div style={{ fontSize: 14, fontStyle: 'italic', color: '#ccc', lineHeight: 1.4 }}>"{getTodayQuote().text}"</div>
-            <div style={{ fontSize: 11, color: A, marginTop: 4, fontWeight: 600 }}>— {getTodayQuote().author}</div>
+        <Card style={{ border: `1px solid ${A}33`, padding: '16px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>{DAY_NAMES[todayIdx].toUpperCase()}</div>
+            <div style={{ fontSize: 11, color: A, fontWeight: 600 }}>— {getTodayQuote().author}</div>
           </div>
+          <div style={{ fontSize: 15, fontStyle: 'italic', color: '#e0e0e0', lineHeight: 1.5 }}>"{getTodayQuote().text}"</div>
         </Card>
       </div>
 
