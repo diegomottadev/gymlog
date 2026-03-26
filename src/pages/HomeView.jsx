@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { A, C, DAY_NAMES } from '../lib/constants'
 import { toDay, getTodayDayIndex, getWeekRange, dateStr } from '../lib/helpers'
 import { requestNotifPermission } from '../lib/notifications'
+import { getTodayQuote } from '../lib/quotes'
 import Card from '../components/Card'
 import Btn from '../components/Btn'
 
@@ -82,9 +83,18 @@ export default function HomeView({ data, sharedObjectives = [], onSelectObjectiv
         </div>
       </div>
 
+      <div style={{ padding: '0 20px 8px' }}>
+        <Card style={{ border: `1px solid ${A}33` }}>
+          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 8 }}>{DAY_NAMES[todayIdx].toUpperCase()}</div>
+          <div style={{ marginBottom: todayRoutines.length > 0 ? 12 : 0 }}>
+            <div style={{ fontSize: 14, fontStyle: 'italic', color: '#ccc', lineHeight: 1.4 }}>"{getTodayQuote().text}"</div>
+            <div style={{ fontSize: 11, color: A, marginTop: 4, fontWeight: 600 }}>— {getTodayQuote().author}</div>
+          </div>
+        </Card>
+      </div>
+
       {todayRoutines.length > 0 && <div style={{ padding: '0 20px 8px' }}>
         <Card style={{ border: `1px solid ${A}33` }}>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 12 }}>{DAY_NAMES[todayIdx].toUpperCase()}</div>
           {todayRoutines.map(({ obj, day, completed }) => (
             <div key={obj.id} onClick={() => onSelectTodayRoutine(obj.id)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}>
