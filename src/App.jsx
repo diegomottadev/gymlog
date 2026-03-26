@@ -74,9 +74,11 @@ export default function App() {
       } else {
         userData = local
       }
-      // Deduplicate completions (keep unique per objectiveId + dayIndex + date)
+      // Clean up completions: remove orphans and duplicates
+      const objIds = new Set((userData.objectives || []).map(o => o.id))
       const dedupMap = {}
       ;(userData.completions || []).forEach(c => {
+        if (!c.objectiveId || !c.date || !objIds.has(c.objectiveId)) return // remove orphans
         const key = c.objectiveId + '-' + c.dayIndex + '-' + c.date
         if (!dedupMap[key]) {
           dedupMap[key] = c
