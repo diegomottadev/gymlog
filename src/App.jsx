@@ -78,16 +78,25 @@ export default function App() {
       } else {
         userData = loadLocal()
       }
-      // Clean up completions: remove orphans and duplicates
+      // Clean up completions: remove orphans, duplicates, and date mismatches
       const objIds = new Set((userData.objectives || []).map(o => o.id))
       const dedupMap = {}
       ;(userData.completions || []).forEach(c => {
         if (!c.objectiveId || !c.date || !objIds.has(c.objectiveId)) return
+        // Validate date matches dayIndex (Mon=0..Sun=6)
+        const dt = new Date(c.date + 'T12:00:00')
+        const jsDay = dt.getDay() // 0=Sun, 1=Mon...
+        const expectedDayIndex = jsDay === 0 ? 6 : jsDay - 1 // convert to Mon=0..Sun=6
+        if (expectedDayIndex !== c.dayIndex) return // date doesn't match day - phantom entry
+        // Validate the day is actually a training day (not rest)
+        const obj = (userData.objectives || []).find(o => o.id === c.objectiveId)
+        if (obj && obj.days && obj.days[c.dayIndex] && obj.days[c.dayIndex].rest) return
         const key = c.objectiveId + '-' + c.dayIndex + '-' + c.date
         if (!dedupMap[key]) {
           dedupMap[key] = c
         }
       })
+      console.log('[gymlog] completions cleanup:', userData.completions.length, '->', Object.keys(dedupMap).length)
       userData.completions = Object.values(dedupMap)
       // Auto-detect expired objectives: if endDate is in the past and active is not explicitly set, mark inactive
       const todayStr = new Date().toISOString().slice(0, 10)
