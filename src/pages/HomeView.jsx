@@ -12,13 +12,17 @@ export default function HomeView({ data, sharedObjectives = [], onSelectObjectiv
   const { mon, sun } = useMemo(() => getWeekRange(), [])
 
   const adherence = useMemo(() => {
+    const activeObjIds = new Set(data.objectives.filter(obj => obj.active !== false).map(obj => obj.id))
     const activeDays = data.objectives.filter(obj => obj.active !== false).reduce((total, obj) => {
       return total + obj.days.filter(d => !d.rest && (d.label || d.exercises.length)).length
     }, 0)
     if (activeDays === 0) return { percent: 0, completed: 0, total: 0, weekCompleted: 0 }
-    const weekCompletions = data.completions.filter(c => c.date >= mon && c.date <= sun)
+    const validCompletions = data.completions.filter(c => activeObjIds.has(c.objectiveId))
+    // Dedup: unique per objectiveId + dayIndex + date
+    const uniqueKeys = new Set(validCompletions.map(c => c.objectiveId + '-' + c.dayIndex + '-' + c.date))
+    const weekCompletions = validCompletions.filter(c => c.date >= mon && c.date <= sun)
     const uniqueWeekDays = new Set(weekCompletions.map(c => c.dayIndex)).size
-    const totalCompleted = data.completions.length
+    const totalCompleted = uniqueKeys.size
     return { percent: Math.min(100, Math.round((uniqueWeekDays / activeDays) * 100)), completed: totalCompleted, total: activeDays, weekCompleted: uniqueWeekDays }
   }, [data.objectives, data.completions, mon, sun])
 
