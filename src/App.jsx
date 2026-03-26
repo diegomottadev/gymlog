@@ -74,11 +74,11 @@ export default function App() {
       } else {
         userData = local
       }
-      // Deduplicate completions (keep latest per objectiveId + dayIndex)
+      // Deduplicate completions (keep unique per objectiveId + dayIndex + date)
       const dedupMap = {}
       ;(userData.completions || []).forEach(c => {
-        const key = c.objectiveId + '-' + c.dayIndex
-        if (!dedupMap[key] || c.date > dedupMap[key].date) {
+        const key = c.objectiveId + '-' + c.dayIndex + '-' + c.date
+        if (!dedupMap[key]) {
           dedupMap[key] = c
         }
       })
