@@ -188,7 +188,7 @@ export default function DayView({ objective, dayIndex, selectedDate, completions
                                 <label style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', display: 'block', marginBottom: 4, textAlign: 'center' }}>{lbl}</label>
                                 <input type="number" min="0" step={step} value={gex[field]}
                                   onChange={e => updateExercise(gex.id, field, e.target.value)}
-                                  style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: C.text, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                                  style={{ width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 4px', color: '#fff', fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
                               </div>
                             ))}
                           </div>
@@ -196,37 +196,37 @@ export default function DayView({ objective, dayIndex, selectedDate, completions
                       ))}
                     </div>
                   </div>
-                  {/* Rest time below combination */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '8px 0', padding: '8px 0' }}>
+                  {/* Rest time + action buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: '8px 0', padding: '8px 0', flexWrap: 'wrap' }}>
                     <label style={{ fontSize: 12, color: A, fontWeight: 700 }}>Descanso</label>
                     <input type="number" min="0" step="5" value={lastEx.descanso}
                       onChange={e => updateExercise(lastEx.id, 'descanso', e.target.value)}
                       style={{ width: 70, background: C.hi, border: `1px solid ${A}55`, borderRadius: 10, padding: '10px 4px', color: A, fontSize: 18, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', outline: 'none' }} />
                     <span style={{ fontSize: 12, color: '#fff' }}>seg</span>
+                    <span style={{ width: 1, height: 20, background: C.border, margin: '0 2px' }} />
+                    <button onClick={() => {
+                      const newEx = [...exercises]
+                      const members = newEx.filter(e => e.group === groupId)
+                      members.forEach(e => e.group = null)
+                      setExercises(newEx)
+                      saveChanges(label, newEx)
+                    }}
+                      style={{
+                        background: 'transparent', color: '#ff6b6b',
+                        border: `1px solid #ff6b6b55`,
+                        borderRadius: 12, padding: '4px 12px', fontSize: 13, fontWeight: 700,
+                        cursor: 'pointer', transition: 'all .2s'
+                      }}>✂ Descombinar</button>
+                    {groupExs[groupExs.length - 1].idx < exercises.length - 1 && (
+                      <button onClick={() => toggleCombine(groupExs[groupExs.length - 1].idx)}
+                        style={{
+                          background: C.hi, color: '#fff',
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 12, padding: '4px 12px', fontSize: 13, fontWeight: 700,
+                          cursor: 'pointer', transition: 'all .2s'
+                        }}>🔗 Combinar</button>
+                    )}
                   </div>
-
-                  {/* Combine buttons between group members */}
-                  {groupExs.map(({ idx: gIdx }, gi) => {
-                    if (gi >= groupExs.length - 1 && gIdx >= exercises.length - 1) return null
-                    const nextIdx = gIdx
-                    const isLastInGroup = gi === groupExs.length - 1
-                    if (gIdx >= exercises.length - 1) return null
-                    const nextEx = exercises[gIdx + 1]
-                    const isCombined = ex.group && nextEx && nextEx.group === groupId
-                    return (
-                      <div key={'cb-' + gIdx} style={{ display: 'flex', justifyContent: 'center', margin: '2px 0' }}>
-                        {gi < groupExs.length - 1 ? null : (
-                          <button onClick={() => toggleCombine(gIdx)}
-                            style={{
-                              background: C.hi, color: C.muted,
-                              border: `1px solid ${C.border}`,
-                              borderRadius: 12, padding: '3px 12px', fontSize: 12, fontWeight: 700,
-                              cursor: 'pointer', transition: 'all .2s'
-                            }}>🔗 Combinar</button>
-                        )}
-                      </div>
-                    )
-                  })}
                 </div>
               )
             } else {
