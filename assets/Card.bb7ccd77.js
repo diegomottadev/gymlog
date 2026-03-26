@@ -1,1 +1,0 @@
-import{b as t,C as d}from"./index.7e25459c.js";function i({children:o,style:a={},onClick:r}){return t("div",{onClick:r,style:{background:d.card,border:`1px solid ${d.border}`,borderRadius:16,padding:"16px 20px",marginBottom:12,cursor:r?"pointer":"default",...a},children:o})}export{i as C};
