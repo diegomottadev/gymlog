@@ -19,6 +19,8 @@ const SharedDayView = lazy(() => import('./pages/SharedDayView'))
 const CalendarView = lazy(() => import('./pages/CalendarView'))
 const SubscriptionView = lazy(() => import('./pages/SubscriptionView'))
 const AccountView = lazy(() => import('./pages/AccountView'))
+const TrainerHomeView = lazy(() => import('./pages/TrainerHomeView'))
+const StudentDetailView = lazy(() => import('./pages/StudentDetailView'))
 
 const LazyFallback = <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
   <div style={{ fontSize: 13, color: C.muted }}>Cargando...</div>
@@ -42,6 +44,7 @@ export default function App() {
   const [userUid, setUserUid] = useState(null)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [userProfile, setUserProfile] = useState(null)
+  const [selStudentEmail, setSelStudentEmail] = useState(null)
 
   const syncRef = useRef(null)
   const doSync = useCallback(newData => {
@@ -182,17 +185,16 @@ export default function App() {
   }, [updateData])
 
   const handleDeleteObjective = useCallback(id => {
-    updateData(prev => ({ ...prev, objectives: prev.objectives.filter(o => o.id !== id) }))
+    updateData(prev => ({
+      ...prev,
+      objectives: prev.objectives.filter(o => o.id !== id),
+      completions: prev.completions.filter(c => c.objectiveId !== id)
+    }))
   }, [updateData])
 
   const handleToggleCompletion = useCallback((objectiveId, dayIndex, date) => {
     updateData(prev => {
-      // Try exact date first, then fall back to current week
-      let exists = prev.completions.find(c => c.objectiveId === objectiveId && c.dayIndex === dayIndex && c.date === date)
-      if (!exists) {
-        const { mon, sun } = getWeekRange()
-        exists = prev.completions.find(c => c.objectiveId === objectiveId && c.dayIndex === dayIndex && c.date >= mon && c.date <= sun)
-      }
+      const exists = prev.completions.find(c => c.objectiveId === objectiveId && c.dayIndex === dayIndex && c.date === date)
       const newCompletions = exists
         ? prev.completions.filter(c => c.id !== exists.id)
         : [...prev.completions, { id: gid(), objectiveId, dayIndex, date }]
@@ -284,15 +286,19 @@ export default function App() {
       ],
       admin: [
         { id: 'home', label: 'Inicio', ic: '🏠' },
-        { id: 'admin', label: 'Solicitudes', ic: '📋' },
+        { id: 'admin', label: 'Admin', ic: '📋' },
         { id: 'objectives', label: 'Objetivos', ic: '🎯' },
-        { id: 'calendar', label: 'Calendario', ic: '📅' },
         { id: 'stats', label: 'Stats', ic: '📊' },
         { id: 'account', label: 'Cuenta', ic: '👤' }
       ]
     }
     return navByRole[role] || navByRole.athlete
   }, [role])
+
+  const handleSharedCompletionChanged = useCallback((sharedId, newCompletions) => {
+    setSharedObjectives(prev => prev.map(s => s.id === sharedId ? { ...s, completions: newCompletions } : s))
+    setSelShared(prev => prev && prev.id === sharedId ? { ...prev, completions: newCompletions } : prev)
+  }, [])
 
   if (phase === 'loading') return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: 16 }}>
@@ -305,7 +311,7 @@ export default function App() {
   if (phase === 'pendingApproval') return <PendingApprovalView onApproved={() => { setRole('trainer'); setPhase('app') }} onLogout={handleLogout} />
   if (phase === 'subscription') return <SubscriptionView uid={userUid} email={userEmail} role={role} subscription={subscription} onLogout={handleLogout} />
 
-  const subView = ['objective', 'day', 'todayRoutine', 'sharedObjective', 'sharedDay', 'premium'].includes(view)
+  const subView = ['objective', 'day', 'todayRoutine', 'sharedObjective', 'sharedDay', 'premium', 'studentDetail'].includes(view)
   const syncIc = syncStatus === 'syncing' ? '⟳' : syncStatus === 'ok' ? '☁️' : '⚠️'
 
   return (
@@ -316,7 +322,8 @@ export default function App() {
       </div>}
 
       <Suspense fallback={LazyFallback}>
-        {view === 'home' && <HomeView data={data} sharedObjectives={role === 'athlete' ? sharedObjectives : []} onSelectObjective={id => { setSelObjectiveId(id); setObjBackTo('home'); setView('objective') }} onSelectTodayRoutine={id => { setSelObjectiveId(id); setView('todayRoutine') }} onUpdateReminder={handleUpdateReminder} onSelectShared={so => { setSelShared(so); setView('sharedObjective') }} />}
+        {view === 'home' && role === 'athlete' && <HomeView data={data} sharedObjectives={sharedObjectives} onSelectObjective={id => { setSelObjectiveId(id); setObjBackTo('home'); setView('objective') }} onSelectTodayRoutine={id => { setSelObjectiveId(id); setView('todayRoutine') }} onUpdateReminder={handleUpdateReminder} onSelectShared={so => { setSelShared(so); setView('sharedObjective') }} />}
+        {view === 'home' && (role === 'trainer' || role === 'admin') && <TrainerHomeView sharedObjectives={sharedObjectives} onSelectStudent={email => { setSelStudentEmail(email); setView('studentDetail') }} />}
         {view === 'todayRoutine' && <TodayRoutineView objective={data.objectives.find(o => o.id === selObjectiveId)} completions={data.completions} onToggleCompletion={handleToggleCompletion} onBack={() => setView('home')} />}
         {view === 'calendar' && <CalendarView data={data} onSelectObjectiveDay={(objId, dayIdx, date) => { setSelObjectiveId(objId); setSelDayIndex(dayIdx); setSelDate(date || null); setObjBackTo('calendar'); setView('day') }} onToggleCompletion={handleToggleCompletion} />}
         {view === 'stats' && <StatsView data={data} />}
@@ -342,18 +349,26 @@ export default function App() {
 
         {view === 'premium' && <SubscriptionView uid={userUid} email={userEmail} role={role} subscription={subscription} onLogout={handleLogout} onBack={() => setView('home')} />}
         {view === 'account' && <AccountView email={userEmail} role={role} subscription={subscription} profile={userProfile} onUpdateProfile={setUserProfile} onLogout={handleLogout} />}
-        {view === 'admin' && <AdminView />}
+        {view === 'admin' && <AdminView adminEmail={userEmail} />}
         {view === 'students' && <StudentsView
           sharedObjectives={sharedObjectives}
           trainerEmail={userEmail}
           onSaveShared={handleSaveShared}
           onDeleteShared={handleDeleteShared}
-          onSelectShared={so => { setSelShared(so); setView('sharedObjective') }} />}
+          onSelectStudent={email => { setSelStudentEmail(email); setView('studentDetail') }} />}
+        {view === 'studentDetail' && selStudentEmail && <StudentDetailView
+          studentEmail={selStudentEmail}
+          sharedObjectives={sharedObjectives}
+          trainerEmail={userEmail}
+          onSaveShared={handleSaveShared}
+          onDeleteShared={handleDeleteShared}
+          onSelectShared={so => { setSelShared(so); setView('sharedObjective') }}
+          onBack={() => setView('students')} />}
         {view === 'sharedObjective' && selShared && <ObjectiveView
           objective={selShared.objective}
-          completions={[]}
+          completions={role === 'athlete' ? (selShared.completions || []).map(c => ({ ...c, objectiveId: selShared.objective.id })) : []}
           readOnly={role === 'athlete'}
-          onBack={() => setView(role === 'athlete' ? 'home' : 'students')}
+          onBack={() => setView(role === 'athlete' ? 'home' : (selStudentEmail ? 'studentDetail' : 'students'))}
           onUpdate={updated => handleUpdateShared(selShared.id, updated)}
           onSelectDay={idx => { setSelSharedDayIndex(idx); setView('sharedDay') }} />}
         {view === 'sharedDay' && selShared && (
@@ -362,7 +377,8 @@ export default function App() {
                 sharedObjective={selShared}
                 dayIndex={selSharedDayIndex}
                 onBack={() => setView('sharedObjective')}
-                onUpdateShared={handleUpdateShared} />
+                onUpdateShared={handleUpdateShared}
+                onCompletionChanged={handleSharedCompletionChanged} />
             : <DayView
                 objective={selShared.objective}
                 dayIndex={selSharedDayIndex}
