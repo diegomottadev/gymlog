@@ -57,6 +57,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    // One-time cache bust v2 - force fresh data from Firestore
+    if (!localStorage.getItem('gymlog_v2_clean')) {
+      localStorage.removeItem('gymlog')
+      localStorage.setItem('gymlog_v2_clean', '1')
+    }
     try { initFirebaseApp(FIREBASE_CONFIG) } catch (e) { console.error(e) }
     fbOnAuthChange(async user => {
       if (!user) { setPhase('login'); return }
@@ -65,20 +70,19 @@ export default function App() {
       setUserEmail(user.email || '')
       setSyncStatus('syncing')
 
-      // Load user data
+      // Load user data - remote is source of truth
       const remote = await fbLoad()
-      const local = loadLocal()
       let userData
       if (remote) {
-        userData = mergeData(local, remote)
+        userData = remote
       } else {
-        userData = local
+        userData = loadLocal()
       }
       // Clean up completions: remove orphans and duplicates
       const objIds = new Set((userData.objectives || []).map(o => o.id))
       const dedupMap = {}
       ;(userData.completions || []).forEach(c => {
-        if (!c.objectiveId || !c.date || !objIds.has(c.objectiveId)) return // remove orphans
+        if (!c.objectiveId || !c.date || !objIds.has(c.objectiveId)) return
         const key = c.objectiveId + '-' + c.dayIndex + '-' + c.date
         if (!dedupMap[key]) {
           dedupMap[key] = c
