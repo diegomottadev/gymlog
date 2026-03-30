@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Check, TrendingUp } from 'lucide-react'
 import { A, C, DAY_NAMES } from '../lib/constants'
 import Card from '../components/Card'
-import { resolveExerciseSets, hasWeightOverride } from '../lib/overrides'
+import { resolveExerciseSets, hasWeightOverride, getWeightDelta } from '../lib/overrides'
 import ProgressionSection from '../components/ProgressionSection'
 import ExName from '../components/ExName'
 
@@ -209,6 +209,7 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
                     <span style={{ flex: 1, fontSize: 10, color: A, fontWeight: 700 }}>EJERCICIO</span>
                     <span style={{ fontSize: 10, color: A, fontWeight: 700, width: 36, textAlign: 'center' }}>S/R</span>
                     <span style={{ fontSize: 10, color: A, fontWeight: 700, width: 28, textAlign: 'center' }}>KG</span>
+                    <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 700, width: 32, textAlign: 'center' }}>Δ</span>
                     <span style={{ fontSize: 10, color: '#4488ff', fontWeight: 700, width: 24, textAlign: 'center' }}>RM</span>
                     <span style={{ fontSize: 10, color: A, fontWeight: 700, width: 32, textAlign: 'right' }}>DESC</span>
                   </div>
@@ -236,11 +237,13 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
                               {groupExs.map(gex => {
                                 const sets = resolveExerciseSets(gex, selectedDate)
                                 const maxPeso = Math.max(...sets.map(s => s.peso))
+                                const delta = getWeightDelta(gex, selectedDate)
                                 return (
                                   <div key={gex.id} style={{ fontSize: 13, color: C.sub, marginBottom: 3, display: 'flex', alignItems: 'center', minWidth: 0 }}>
                                     <ExName name={gex.nombre} />
                                     <span style={{ fontFamily: 'monospace', fontSize: 11, width: 36, textAlign: 'center', flexShrink: 0 }}>{sets.length}x{sets[0].repeticiones}</span>
                                     <span style={{ fontFamily: 'monospace', fontSize: 11, width: 28, textAlign: 'center', flexShrink: 0 }}>{maxPeso}</span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: 9, width: 32, textAlign: 'center', flexShrink: 0, color: delta > 0 ? '#4ade80' : delta < 0 ? '#f87171' : C.muted, fontWeight: 700 }}>{delta !== 0 ? (delta > 0 ? '+' : '') + delta : ''}</span>
                                     <span style={{ fontFamily: 'monospace', fontSize: 11, width: 24, textAlign: 'center', flexShrink: 0, color: '#4488ff' }}>{gex.oneRM ? gex.oneRM + '' : ''}</span>
                                     <span style={{ fontFamily: 'monospace', fontSize: 11, color: A, fontWeight: 700, width: 32, textAlign: 'right', flexShrink: 0 }}>{gex.id === lastEx.id ? lastEx.descanso + 's' : ''}</span>
                                   </div>
@@ -252,11 +255,13 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
                       } else {
                         const sets = resolveExerciseSets(ex, selectedDate)
                         const maxPeso = Math.max(...sets.map(s => s.peso))
+                        const delta = getWeightDelta(ex, selectedDate)
                         rows.push(
                           <div key={ex.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 3, paddingLeft: 12, minWidth: 0 }}>
                             <ExName name={ex.nombre} style={{ fontSize: 13, color: C.sub }} />
                             <span style={{ fontFamily: 'monospace', fontSize: 11, width: 36, textAlign: 'center', flexShrink: 0 }}>{sets.length}x{sets[0].repeticiones}</span>
                             <span style={{ fontFamily: 'monospace', fontSize: 11, width: 28, textAlign: 'center', flexShrink: 0 }}>{maxPeso}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 9, width: 32, textAlign: 'center', flexShrink: 0, color: delta > 0 ? '#4ade80' : delta < 0 ? '#f87171' : C.muted, fontWeight: 700 }}>{delta !== 0 ? (delta > 0 ? '+' : '') + delta : ''}</span>
                             <span style={{ fontFamily: 'monospace', fontSize: 11, width: 24, textAlign: 'center', flexShrink: 0, color: '#4488ff' }}>{ex.oneRM ? ex.oneRM + '' : ''}</span>
                             <span style={{ fontFamily: 'monospace', fontSize: 11, color: A, fontWeight: 700, width: 32, textAlign: 'right', flexShrink: 0 }}>{ex.descanso}s</span>
                           </div>
