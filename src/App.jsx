@@ -1,13 +1,18 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
+import { Home, Target, Calendar, BarChart3, User, Users, ClipboardList, Dumbbell } from 'lucide-react'
 import { A, C, FIREBASE_CONFIG, EMPTY_DATA, ADMIN_EMAILS, FUNCTIONS_URL, SUBSCRIPTION_PLANS } from './lib/constants'
 import { gid, toDay, getTodayDayIndex, loadLocal, persist, mergeData, createEmptyObjective, getWeekRange } from './lib/helpers'
 import { initFirebaseApp, fbOnAuthChange, fbLoad, fbSave, fbSignOut, setUid, fbLoadUserRole, fbSaveUserRole, fbLoadTrainerRequest, fbLoadUserProfile, fbSaveSharedObjective, fbLoadSharedByTrainer, fbLoadSharedByStudent, fbUpdateSharedObjective, fbDeleteSharedObjective } from './lib/firebase'
 import { sendNotification } from './lib/notifications'
+import SubscriptionModal from './components/SubscriptionModal'
+import GymLoader from './components/GymLoader'
+import LandingView from './pages/LandingView'
 import LoginView from './pages/LoginView'
 import TrainerRegisterView from './pages/TrainerRegisterView'
 import PendingApprovalView from './pages/PendingApprovalView'
 
 const AdminView = lazy(() => import('./pages/AdminView'))
+const AdminHomeView = lazy(() => import('./pages/AdminHomeView'))
 const StudentsView = lazy(() => import('./pages/StudentsView'))
 const HomeView = lazy(() => import('./pages/HomeView'))
 const StatsView = lazy(() => import('./pages/StatsView'))
@@ -28,6 +33,7 @@ const LazyFallback = <div style={{ display: 'flex', alignItems: 'center', justif
 
 export default function App() {
   const [phase, setPhase] = useState('loading')
+  const [showLanding, setShowLanding] = useState(true)
   const [data, setData] = useState({ ...EMPTY_DATA })
   const [view, setView] = useState('home')
   const [syncStatus, setSyncStatus] = useState('idle')
@@ -41,6 +47,7 @@ export default function App() {
   const [selSharedDayIndex, setSelSharedDayIndex] = useState(null)
   const [selDate, setSelDate] = useState(null)
   const [subscription, setSubscription] = useState(null)
+  const [isExempt, setIsExempt] = useState(false)
   const [userUid, setUserUid] = useState(null)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [userProfile, setUserProfile] = useState(null)
@@ -103,6 +110,7 @@ export default function App() {
       })
       console.log('[gymlog] completions cleanup:', userData.completions.length, '->', Object.keys(dedupMap).length)
       userData.completions = Object.values(dedupMap)
+
       // Auto-detect expired objectives: if endDate is in the past and active is not explicitly set, mark inactive
       const todayStr = new Date().toISOString().slice(0, 10)
       userData.objectives = userData.objectives.map(obj => {
@@ -142,8 +150,17 @@ export default function App() {
         }
       }
 
-      // Check subscription (admin skips)
-      if (detectedRole !== 'admin') {
+      // Check if account is inactive
+      if (detectedRole !== 'admin' && remote && remote.active === false) {
+        await fbSignOut()
+        setPhase('login')
+        return
+      }
+
+      // Check subscription (admin and exempt users skip)
+      const userExempt = !!(remote && remote.exempt)
+      setIsExempt(userExempt)
+      if (detectedRole !== 'admin' && !userExempt) {
         try {
           const subRes = await fetch(`${FUNCTIONS_URL}/initTrial`, {
             method: 'POST',
@@ -293,26 +310,25 @@ export default function App() {
   const nav = useMemo(() => {
     const navByRole = {
       athlete: [
-        { id: 'home', label: 'Inicio', ic: '🏠' },
-        { id: 'objectives', label: 'Objetivos', ic: '🎯' },
-        { id: 'calendar', label: 'Calendario', ic: '📅' },
-        { id: 'stats', label: 'Stats', ic: '📊' },
-        { id: 'account', label: 'Cuenta', ic: '👤' }
+        { id: 'home', label: 'Inicio', Icon: Home },
+        { id: 'objectives', label: 'Objetivos', Icon: Target },
+        { id: 'calendar', label: 'Calendario', Icon: Calendar },
+        { id: 'stats', label: 'Stats', Icon: BarChart3 },
+        { id: 'account', label: 'Cuenta', Icon: User }
       ],
       trainer: [
-        { id: 'home', label: 'Inicio', ic: '🏠' },
-        { id: 'students', label: 'Alumnos', ic: '👥' },
-        { id: 'objectives', label: 'Objetivos', ic: '🎯' },
-        { id: 'calendar', label: 'Calendario', ic: '📅' },
-        { id: 'stats', label: 'Stats', ic: '📊' },
-        { id: 'account', label: 'Cuenta', ic: '👤' }
+        { id: 'home', label: 'Inicio', Icon: Home },
+        { id: 'students', label: 'Alumnos', Icon: Users },
+        { id: 'objectives', label: 'Objetivos', Icon: Target },
+        { id: 'calendar', label: 'Calendario', Icon: Calendar },
+        { id: 'stats', label: 'Stats', Icon: BarChart3 },
+        { id: 'account', label: 'Cuenta', Icon: User }
       ],
       admin: [
-        { id: 'home', label: 'Inicio', ic: '🏠' },
-        { id: 'admin', label: 'Admin', ic: '📋' },
-        { id: 'objectives', label: 'Objetivos', ic: '🎯' },
-        { id: 'stats', label: 'Stats', ic: '📊' },
-        { id: 'account', label: 'Cuenta', ic: '👤' }
+        { id: 'home', label: 'Inicio', Icon: Home },
+        { id: 'requests', label: 'Solicitudes', Icon: ClipboardList },
+        { id: 'admin', label: 'Usuarios', Icon: Users },
+        { id: 'account', label: 'Cuenta', Icon: User }
       ]
     }
     return navByRole[role] || navByRole.athlete
@@ -324,12 +340,11 @@ export default function App() {
   }, [])
 
   if (phase === 'loading') return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 32 }}>💪</div>
-      <div style={{ fontSize: 13, color: C.muted }}>Cargando...</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', background: C.bg }}>
+      <GymLoader size={80} />
     </div>
   )
-  if (phase === 'login') return <LoginView onDone={() => { }} onTrainerRegister={() => setPhase('trainerRegister')} />
+  if (phase === 'login') return showLanding ? <LandingView onStart={() => setShowLanding(false)} /> : <LoginView onDone={() => { }} onTrainerRegister={() => setPhase('trainerRegister')} onShowLanding={() => setShowLanding(true)} />
   if (phase === 'trainerRegister') return <TrainerRegisterView onDone={() => setPhase('pendingApproval')} onBack={() => setPhase('login')} />
   if (phase === 'pendingApproval') return <PendingApprovalView onApproved={() => { setRole('trainer'); setPhase('app') }} onLogout={handleLogout} />
   if (phase === 'subscription') return <SubscriptionView uid={userUid} email={userEmail} role={role} subscription={subscription} onLogout={handleLogout} />
@@ -338,15 +353,19 @@ export default function App() {
   const syncIc = syncStatus === 'syncing' ? '⟳' : syncStatus === 'ok' ? '☁️' : '⚠️'
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', color: C.text, maxWidth: 480, margin: '0 auto', paddingBottom: subView ? 0 : (role !== 'admin' && (!subscription || subscription.status !== 'active') ? 108 : 76) }}>
-      {!subView && <div style={{ position: 'absolute', top: 24, right: 20, display: 'flex', alignItems: 'center', gap: 10, zIndex: 50 }}>
-        <span style={{ fontSize: 15 }}>{syncIc}</span>
-        {role !== 'athlete' && <span style={{ fontSize: 9, color: A, fontWeight: 700, background: `${A}22`, padding: '2px 8px', borderRadius: 6 }}>{role === 'admin' ? 'ADMIN' : 'TRAINER'}</span>}
+    <div style={{ background: C.bg, minHeight: '100vh', color: C.text, maxWidth: 480, margin: '0 auto', fontFamily: C.font, paddingBottom: subView ? 0 : (role !== 'admin' && !isExempt && (!subscription || subscription.status !== 'active') ? 108 : 76) }}>
+      {!subView && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 8px 0' }}>
+        <div style={{ fontSize: 11, color: '#fff', letterSpacing: '2px', fontWeight: 700 }}>GYM TRACKER</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 15 }}>{syncIc}</span>
+          {role !== 'athlete' && <span style={{ fontSize: 9, color: A, fontWeight: 700, background: `${A}22`, padding: '2px 8px', borderRadius: 6 }}>{role === 'admin' ? 'ADMIN' : 'TRAINER'}</span>}
+        </div>
       </div>}
 
       <Suspense fallback={LazyFallback}>
         {view === 'home' && role === 'athlete' && <HomeView data={data} sharedObjectives={sharedObjectives} onSelectObjective={id => { setSelObjectiveId(id); setObjBackTo('home'); setView('objective') }} onSelectTodayRoutine={id => { setSelObjectiveId(id); setView('todayRoutine') }} onUpdateReminder={handleUpdateReminder} onSelectShared={so => { setSelShared(so); setView('sharedObjective') }} />}
-        {view === 'home' && (role === 'trainer' || role === 'admin') && <TrainerHomeView sharedObjectives={sharedObjectives} onSelectStudent={email => { setSelStudentEmail(email); setView('studentDetail') }} />}
+        {view === 'home' && role === 'trainer' && <TrainerHomeView sharedObjectives={sharedObjectives} onSelectStudent={email => { setSelStudentEmail(email); setView('studentDetail') }} />}
+        {view === 'home' && role === 'admin' && <AdminHomeView adminEmail={userEmail} />}
         {view === 'todayRoutine' && <TodayRoutineView objective={data.objectives.find(o => o.id === selObjectiveId)} completions={data.completions} onToggleCompletion={handleToggleCompletion} onBack={() => setView('home')} />}
         {view === 'calendar' && <CalendarView data={data} onSelectObjectiveDay={(objId, dayIdx, date) => { setSelObjectiveId(objId); setSelDayIndex(dayIdx); setSelDate(date || null); setObjBackTo('calendar'); setView('day') }} onToggleCompletion={handleToggleCompletion} />}
         {view === 'stats' && <StatsView data={data} />}
@@ -372,7 +391,8 @@ export default function App() {
 
         {view === 'premium' && <SubscriptionView uid={userUid} email={userEmail} role={role} subscription={subscription} onLogout={handleLogout} onBack={() => setView('home')} />}
         {view === 'account' && <AccountView email={userEmail} role={role} subscription={subscription} profile={userProfile} onUpdateProfile={setUserProfile} onLogout={handleLogout} />}
-        {view === 'admin' && <AdminView adminEmail={userEmail} />}
+        {view === 'admin' && <AdminView adminEmail={userEmail} initialTab="athletes" />}
+        {view === 'requests' && <AdminView adminEmail={userEmail} initialTab="requests" />}
         {view === 'students' && <StudentsView
           sharedObjectives={sharedObjectives}
           trainerEmail={userEmail}
@@ -412,7 +432,7 @@ export default function App() {
         )}
       </Suspense>
 
-      {!subView && role !== 'admin' && (!subscription || subscription.status !== 'active') && (
+      {!subView && role !== 'admin' && !isExempt && (!subscription || subscription.status !== 'active') && (
         <div style={{ position: 'fixed', bottom: 68, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 101 }}>
           <button onClick={() => setView('premium')}
             style={{ width: '100%', padding: '7px 0', background: 'linear-gradient(135deg, #FFD700, #FFA500)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -427,12 +447,22 @@ export default function App() {
         {nav.map(item => (
           <button key={item.id} onClick={() => setView(item.id)}
             style={{ flex: 1, padding: '10px 0 14px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 24 }}>{item.ic}</span>
+            <item.Icon size={22} color={view === item.id ? A : '#fff'} strokeWidth={view === item.id ? 2.5 : 1.5} />
             <span style={{ fontSize: 12, fontWeight: view === item.id ? 800 : 400, color: view === item.id ? A : '#fff' }}>{item.label}</span>
             {view === item.id && <div style={{ width: 24, height: 2, background: A, borderRadius: 2 }} />}
           </button>
         ))}
       </div>}
+
+      <SubscriptionModal
+        subscription={subscription}
+        role={role}
+        email={userEmail}
+        exempt={isExempt}
+        currentView={view}
+        onRenew={() => setView('premium')}
+        onLogout={handleLogout}
+      />
 
       {showWelcomeModal && (() => {
         const plan = role === 'trainer' ? 'trainer' : 'athlete'
@@ -444,9 +474,9 @@ export default function App() {
           ? new Date(subscription.renewalDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
           : (() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) })()
         const features = [
-          { ic: '🎯', text: 'Objetivos ilimitados' },
-          { ic: '📅', text: 'Calendario de entrenamientos' },
-          { ic: '📊', text: 'Estadisticas detalladas' },
+          { Icon: Target, text: 'Objetivos ilimitados' },
+          { Icon: Calendar, text: 'Calendario de entrenamientos' },
+          { Icon: BarChart3, text: 'Estadisticas detalladas' },
           { ic: '🔔', text: 'Recordatorios diarios' },
           { ic: '☁️', text: 'Sincronizacion en la nube' },
           ...(role === 'trainer' ? [
@@ -489,7 +519,7 @@ export default function App() {
                 <div style={{ fontSize: 10, color: C.muted, letterSpacing: '1px', marginBottom: 12 }}>QUE INCLUYE</div>
                 {features.map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                    <span style={{ fontSize: 16 }}>{f.ic}</span>
+                    {f.Icon ? <f.Icon size={16} color={A} /> : <span style={{ fontSize: 16 }}>{f.ic}</span>}
                     <span style={{ fontSize: 13 }}>{f.text}</span>
                   </div>
                 ))}

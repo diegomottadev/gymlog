@@ -75,3 +75,17 @@ export function createEmptyObjective(name) {
     days: DAY_NAMES.map((_, i) => ({ dayNumber: i + 1, label: '', exercises: [] }))
   }
 }
+
+export function getWeekId(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  const dow = d.getDay()
+  const diff = dow === 0 ? 6 : dow - 1
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - diff)
+  return mon.toISOString().slice(0, 10)
+}
+
+export function getWeekLabel(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  return `${d.getDate()}/${d.getMonth() + 1}`
+}

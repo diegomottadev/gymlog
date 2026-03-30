@@ -44,7 +44,7 @@ export default function AccountView({ email, role, subscription, profile, onUpda
   const subStatus = subscription?.status || 'none'
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px', minHeight: '100vh' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '32px 8px', minHeight: '100vh' }}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: `${A}22`, border: `2px solid ${A}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 32 }}>
           {(fullName || email || '?')[0].toUpperCase()}

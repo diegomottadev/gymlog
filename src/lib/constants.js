@@ -1,13 +1,16 @@
 export const KEY = 'gymtracker_v1'
 export const A = '#BBFF00'
 export const C = {
-  bg: '#0a0a0a',
-  card: '#141414',
-  hi: '#1e1e1e',
-  border: '#252525',
-  muted: '#555',
-  text: '#f0f0f0',
-  danger: '#ff5555'
+  bg: '#0b0c08',
+  card: '#141610',
+  hi: '#1c1e16',
+  border: '#282a20',
+  muted: '#8a8e7a',
+  text: '#eaeed8',
+  sub: '#c0c4b0',
+  danger: '#ff6b6b',
+  warning: '#f0a030',
+  font: "'Plus Jakarta Sans', sans-serif"
 }
 export const DAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 export const FIREBASE_CONFIG = {

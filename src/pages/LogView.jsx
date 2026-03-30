@@ -30,17 +30,17 @@ export default function LogView({ data, onSave, onBack }) {
     <div>
       <BackHeader onBack={onBack} title="Registrar" />
 
-      <div style={{ padding: '0 20px 12px' }}>
+      <div style={{ padding: '0 8px 12px' }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre: Push Day, Piernas, etc."
           style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 16px', color: C.text, fontSize: 15, outline: 'none' }} />
       </div>
 
-      <div style={{ padding: '0 20px' }}>
+      <div style={{ padding: '0 8px' }}>
         {exercises.map(ex => (
           <Card key={ex.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
-              <button onClick={() => delEx(ex.id)} style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }}>✕</button>
+              <button onClick={() => delEx(ex.id)} style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }}>×</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 32px', gap: 6, marginBottom: 8 }}>
               {['#', 'Reps', 'Kg', ''].map((h, i) => <div key={i} style={{ fontSize: 10, color: C.muted, textAlign: 'center', letterSpacing: '1px' }}>{h}</div>)}
@@ -62,7 +62,7 @@ export default function LogView({ data, onSave, onBack }) {
         ))}
       </div>
 
-      <div style={{ padding: '0 20px 8px', position: 'relative' }}>
+      <div style={{ padding: '0 8px 8px', position: 'relative' }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <input value={newEx} onChange={e => { setNewEx(e.target.value); setShowSug(true) }} onFocus={() => setShowSug(true)}
@@ -84,8 +84,8 @@ export default function LogView({ data, onSave, onBack }) {
         </div>
       </div>
 
-      <div style={{ padding: '8px 20px 32px' }}>
-        <Btn onClick={handleSave} disabled={!exercises.length} style={{ width: '100%', padding: 15, fontSize: 15, borderRadius: 14 }}>
+      <div style={{ padding: '8px 8px 32px' }}>
+        <Btn onClick={handleSave} disabled={!exercises.length} style={{ width: '100%', padding: 15, fontSize: 15, borderRadius: 12 }}>
           ✓ Guardar entrenamiento
         </Btn>
       </div>

@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "firebase": "^9.23.0",
+    "lottie-react": "^2.4.1",
+    "lucide-react": "^1.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.8.0"

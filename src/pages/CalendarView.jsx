@@ -1,6 +1,10 @@
 import { useState, useMemo } from 'react'
+import { Check } from 'lucide-react'
 import { A, C, DAY_NAMES } from '../lib/constants'
 import Card from '../components/Card'
+import { resolveExerciseSets } from '../lib/overrides'
+import ProgressionSection from '../components/ProgressionSection'
+import ExName from '../components/ExName'
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -56,10 +60,10 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
         if (ds < obj.startDate || ds > obj.endDate) continue
         const dayIdx = getDayIndex(calDay.date)
         const day = obj.days[dayIdx]
-        if (!day || (!day.label && !day.exercises.length)) continue
-        const completed = data.completions.some(c => c.objectiveId === obj.id && c.dayIndex === dayIdx && c.date === ds)
+        if (!day || (!day.rest && !day.label && !day.exercises.length)) continue
+        const completed = day.rest ? false : data.completions.some(c => c.objectiveId === obj.id && c.dayIndex === dayIdx && c.date === ds)
         if (!map[ds]) map[ds] = []
-        map[ds].push({ objective: obj, dayIndex: dayIdx, day, completed, inactive: obj.active === false })
+        map[ds].push({ objective: obj, dayIndex: dayIdx, day, completed, inactive: obj.active === false, rest: !!day.rest })
       }
     }
     return map
@@ -78,15 +82,15 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
 
   return (
     <div>
-      <div style={{ padding: '24px 20px 12px', fontSize: 20, fontWeight: 800 }}>Calendario</div>
+      <div style={{ padding: '24px 8px 12px', fontSize: 20, fontWeight: 800 }}>Calendario</div>
 
       {/* Month navigation */}
-      <div style={{ padding: '0 20px 12px' }}>
+      <div style={{ padding: '0 8px 12px' }}>
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <button onClick={prevMonth} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, width: 32, height: 32, color: C.text, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+            <button onClick={prevMonth} aria-label="Mes anterior" style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, width: 32, height: 32, color: C.text, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{MONTH_NAMES[month]} {year}</div>
-            <button onClick={nextMonth} style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, width: 32, height: 32, color: C.text, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
+            <button onClick={nextMonth} aria-label="Mes siguiente" style={{ background: C.hi, border: `1px solid ${C.border}`, borderRadius: 8, width: 32, height: 32, color: C.text, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
           </div>
 
           {/* Day headers */}
@@ -110,6 +114,8 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
               return (
                 <div key={i}
                   onClick={() => hasRoutine ? setSelectedDate(isSelected ? null : cd.dateStr) : null}
+                  role={hasRoutine ? 'button' : undefined} tabIndex={hasRoutine ? 0 : undefined}
+                  onKeyDown={hasRoutine ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDate(isSelected ? null : cd.dateStr) } } : undefined}
                   style={{
                     aspectRatio: '1', borderRadius: 8, display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', cursor: hasRoutine ? 'pointer' : 'default',
@@ -136,21 +142,50 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
         </Card>
       </div>
 
-      {/* Detail for selected date */}
-      {selectedDate && routineMap[selectedDate] && (
-        <div style={{ padding: '0 20px 12px' }}>
+      {/* Empty state for selected date with no routines */}
+      {selectedDate && !routineMap[selectedDate] && (
+        <div style={{ padding: '0 8px 12px' }}>
           <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 8, paddingLeft: 4 }}>
             {new Date(selectedDate + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
           </div>
-          {routineMap[selectedDate].map((r, i) => (
+          <div style={{ padding: 24, textAlign: 'center', color: C.muted, borderRadius: 12, border: `1px dashed ${C.border}` }}>
+            <div style={{ fontSize: 14 }}>Sin rutinas para este día</div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail for selected date */}
+      {selectedDate && routineMap[selectedDate] && (
+        <div style={{ padding: '0 8px 12px' }}>
+          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 8, paddingLeft: 4 }}>
+            {new Date(selectedDate + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}
+          </div>
+          {routineMap[selectedDate].map((r, i) => r.rest ? (
+            <Card key={i} style={{ opacity: r.inactive ? 0.5 : 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                {r.objective.name}
+                {r.objective.startDate && r.objective.endDate && (
+                  <span style={{ fontSize: 13, color: C.sub, fontWeight: 400, marginLeft: 6 }}>
+                    {new Date(r.objective.startDate + 'T12:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} - {new Date(r.objective.endDate + 'T12:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                  </span>
+                )}
+              </div>
+              <div style={{ padding: 16, textAlign: 'center', color: C.muted, borderRadius: 10, border: `1px dashed ${C.border}` }}>
+                <div style={{ fontSize: 14 }}>Día de descanso</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>Aprovechá para recuperarte</div>
+              </div>
+            </Card>
+          ) : (
             <Card key={i} onClick={() => onSelectObjectiveDay(r.objective.id, r.dayIndex, selectedDate)}
+              role="button" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectObjectiveDay(r.objective.id, r.dayIndex, selectedDate) } }}
               style={{ cursor: 'pointer', border: `1px solid ${r.completed ? A + '55' : C.border}`, opacity: r.inactive ? 0.5 : 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>
                     {r.objective.name}
                     {r.objective.startDate && r.objective.endDate && (
-                      <span style={{ fontSize: 13, color: '#fff', fontWeight: 400, marginLeft: 6 }}>
+                      <span style={{ fontSize: 13, color: C.sub, fontWeight: 400, marginLeft: 6 }}>
                         {new Date(r.objective.startDate + 'T12:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} - {new Date(r.objective.endDate + 'T12:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
                       </span>
                     )}
@@ -163,15 +198,16 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
                     background: r.completed ? A : 'transparent',
                     color: r.completed ? '#111' : A,
                     border: r.completed ? 'none' : `1px solid ${A}`
-                  }}>{r.completed ? '✓ Completado' : 'Completar'}</button>
+                  }}>{r.completed ? <><Check size={12} aria-hidden="true" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />Completado</> : 'Completar'}</button>
               </div>
               {r.day.exercises.length > 0 && (
                 <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
-                  <div style={{ display: 'flex', marginBottom: 6, paddingLeft: 16 }}>
-                    <span style={{ flex: 1, fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px' }}>EJERCICIO</span>
-                    <span style={{ fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px', width: 60, textAlign: 'center' }}>SERIE/REP</span>
-                    <span style={{ fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px', width: 45, textAlign: 'center' }}>PESO</span>
-                    <span style={{ fontSize: 10, color: A, fontWeight: 700, letterSpacing: '1px', width: 45, textAlign: 'right' }}>DESC</span>
+                  <div style={{ display: 'flex', marginBottom: 6, paddingLeft: 12 }}>
+                    <span style={{ flex: 1, fontSize: 10, color: A, fontWeight: 700 }}>EJERCICIO</span>
+                    <span style={{ fontSize: 10, color: A, fontWeight: 700, width: 36, textAlign: 'center' }}>S/R</span>
+                    <span style={{ fontSize: 10, color: A, fontWeight: 700, width: 28, textAlign: 'center' }}>KG</span>
+                    <span style={{ fontSize: 10, color: '#4488ff', fontWeight: 700, width: 24, textAlign: 'center' }}>RM</span>
+                    <span style={{ fontSize: 10, color: A, fontWeight: 700, width: 32, textAlign: 'right' }}>DESC</span>
                   </div>
                   {(() => {
                     const rows = []
@@ -193,25 +229,33 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
                               <div style={{ position: 'absolute', left: 0, top: 6, width: 6, height: 2, background: A }} />
                               <div style={{ position: 'absolute', left: 0, bottom: 6, width: 6, height: 2, background: A }} />
                             </div>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                              {groupExs.map(gex => (
-                                <div key={gex.id} style={{ fontSize: 14, color: '#fff', marginBottom: 3, display: 'flex', alignItems: 'center' }}>
-                                  <span style={{ flex: 1 }}>{gex.nombre}</span>
-                                  <span style={{ fontFamily: 'monospace', fontSize: 13, width: 60, textAlign: 'center' }}>{gex.series}x{gex.repeticiones}</span>
-                                  <span style={{ fontFamily: 'monospace', fontSize: 13, width: 45, textAlign: 'center' }}>{gex.peso}kg</span>
-                                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: A, fontWeight: 700, width: 45, textAlign: 'right' }}>{gex.id === lastEx.id ? lastEx.descanso + 's' : ''}</span>
-                                </div>
-                              ))}
+                            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                              {groupExs.map(gex => {
+                                const sets = resolveExerciseSets(gex, selectedDate)
+                                const maxPeso = Math.max(...sets.map(s => s.peso))
+                                return (
+                                  <div key={gex.id} style={{ fontSize: 13, color: C.sub, marginBottom: 3, display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                                    <ExName name={gex.nombre} />
+                                    <span style={{ fontFamily: 'monospace', fontSize: 11, width: 36, textAlign: 'center', flexShrink: 0 }}>{sets.length}x{sets[0].repeticiones}</span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: 11, width: 28, textAlign: 'center', flexShrink: 0 }}>{maxPeso}</span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: 11, width: 24, textAlign: 'center', flexShrink: 0, color: '#4488ff' }}>{gex.oneRM ? gex.oneRM + '' : ''}</span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: A, fontWeight: 700, width: 32, textAlign: 'right', flexShrink: 0 }}>{gex.id === lastEx.id ? lastEx.descanso + 's' : ''}</span>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         )
                       } else {
+                        const sets = resolveExerciseSets(ex, selectedDate)
+                        const maxPeso = Math.max(...sets.map(s => s.peso))
                         rows.push(
-                          <div key={ex.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 3, paddingLeft: 16 }}>
-                            <span style={{ flex: 1, fontSize: 14, color: '#fff' }}>{ex.nombre}</span>
-                            <span style={{ fontFamily: 'monospace', fontSize: 13, width: 60, textAlign: 'center' }}>{ex.series}x{ex.repeticiones}</span>
-                            <span style={{ fontFamily: 'monospace', fontSize: 13, width: 45, textAlign: 'center' }}>{ex.peso}kg</span>
-                            <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#5b9bd5', fontWeight: 700, width: 45, textAlign: 'right' }}>{ex.descanso}s</span>
+                          <div key={ex.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 3, paddingLeft: 12, minWidth: 0 }}>
+                            <ExName name={ex.nombre} style={{ fontSize: 13, color: C.sub }} />
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, width: 36, textAlign: 'center', flexShrink: 0 }}>{sets.length}x{sets[0].repeticiones}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, width: 28, textAlign: 'center', flexShrink: 0 }}>{maxPeso}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, width: 24, textAlign: 'center', flexShrink: 0, color: '#4488ff' }}>{ex.oneRM ? ex.oneRM + '' : ''}</span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: A, fontWeight: 700, width: 32, textAlign: 'right', flexShrink: 0 }}>{ex.descanso}s</span>
                           </div>
                         )
                         ei++
@@ -223,12 +267,15 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
               )}
             </Card>
           ))}
+          {routineMap[selectedDate].filter(r => !r.rest && r.day.exercises.length > 0).map((r, i) => (
+            <ProgressionSection key={'prog-' + i} exercises={r.day.exercises} />
+          ))}
         </div>
       )}
 
       {/* Legend / empty state */}
       {!data.objectives.some(o => o.startDate && o.endDate) && (
-        <div style={{ padding: '20px', textAlign: 'center', color: C.muted }}>
+        <div style={{ padding: '8px', textAlign: 'center', color: C.muted }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📅</div>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sin rutinas en el calendario</div>
           <div style={{ fontSize: 12 }}>Configurá fechas de inicio y fin en tus objetivos para verlos acá</div>

@@ -36,5 +36,8 @@ export default defineConfig({
       }
     })
   ],
-  base: '/gymlog/'
+  base: '/gymlog/',
+  server: {
+    host: 'localhost'
+  }
 })

@@ -1,16 +1,9 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { A, C, DAY_NAMES } from '../lib/constants'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import Card from '../components/Card'
-
-function getWeekId(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00')
-  const dow = d.getDay()
-  const diff = dow === 0 ? 6 : dow - 1
-  const mon = new Date(d)
-  mon.setDate(d.getDate() - diff)
-  return mon.toISOString().slice(0, 10)
-}
+import ProgressionChart from '../components/ProgressionChart'
+import { getWeekId } from '../lib/helpers'
 
 function getMonthLabel(dateStr) {
   const d = new Date(dateStr + 'T12:00:00')
@@ -21,7 +14,21 @@ function getMonthLabel(dateStr) {
 export default function StatsView({ data }) {
   const completions = data.completions || []
   const objectives = data.objectives || []
+  const [selectedExerciseId, setSelectedExerciseId] = useState(null)
 
+  const allExercises = useMemo(() => {
+    const map = {}
+    objectives.forEach(obj => {
+      obj.days.forEach(d => {
+        (d.exercises || []).forEach(ex => {
+          if (ex.weightHistory && ex.weightHistory.length && !map[ex.id]) {
+            map[ex.id] = { id: ex.id, nombre: ex.nombre, oneRMMode: ex.oneRMMode, weightHistory: ex.weightHistory }
+          }
+        })
+      })
+    })
+    return Object.values(map)
+  }, [objectives])
   // Active days count (non-rest days with content) - only active objectives
   const activeDays = useMemo(() => {
     return objectives.filter(obj => obj.active !== false).reduce((total, obj) => {
@@ -121,10 +128,10 @@ export default function StatsView({ data }) {
   }, [objectives, completions])
 
   if (!completions.length) return (
-    <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+    <div style={{ padding: '60px 8px', textAlign: 'center' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
       <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 8 }}>Sin datos todavía</div>
-      <div style={{ fontSize: 14, color: '#fff' }}>Completá rutinas para ver estadísticas</div>
+      <div style={{ fontSize: 14, color: C.sub }}>Completá rutinas para ver estadísticas</div>
     </div>
   )
 
@@ -132,28 +139,28 @@ export default function StatsView({ data }) {
 
   return (
     <div>
-      <div style={{ padding: '24px 20px 12px', fontSize: 20, fontWeight: 800 }}>Estadísticas</div>
+      <div style={{ padding: '24px 8px 12px', fontSize: 20, fontWeight: 800 }}>Estadísticas</div>
 
       {/* Summary cards */}
-      {summary && <div style={{ padding: '0 20px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+      {summary && <div style={{ padding: '0 8px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <Card style={{ marginBottom: 0 }}>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>TOTAL</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px' }}>TOTAL</div>
           <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: A, marginTop: 4 }}>{summary.total}</div>
         </Card>
         <Card style={{ marginBottom: 0 }}>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>PROMEDIO</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px' }}>PROMEDIO</div>
           <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: A, marginTop: 4 }}>{summary.avgPerWeek}<span style={{ fontSize: 12 }}>/sem</span></div>
         </Card>
         <Card style={{ marginBottom: 0 }}>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px' }}>MEJOR</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px' }}>MEJOR</div>
           <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: A, marginTop: 4 }}>{summary.bestWeek}<span style={{ fontSize: 12 }}>/sem</span></div>
         </Card>
       </div>}
 
       {/* Weekly adherence */}
-      {weeklyAdherence.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+      {weeklyAdherence.length > 0 && <div style={{ padding: '0 8px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>ADHERENCIA SEMANAL (%)</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 14 }}>ADHERENCIA SEMANAL (%)</div>
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={weeklyAdherence}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -167,9 +174,9 @@ export default function StatsView({ data }) {
       </div>}
 
       {/* Day distribution */}
-      {dayDistribution.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+      {dayDistribution.length > 0 && <div style={{ padding: '0 8px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>DISTRIBUCIÓN POR DÍA</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 14 }}>DISTRIBUCIÓN POR DÍA</div>
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={dayDistribution}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -183,9 +190,9 @@ export default function StatsView({ data }) {
       </div>}
 
       {/* Monthly completions */}
-      {monthlyData.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+      {monthlyData.length > 0 && <div style={{ padding: '0 8px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>COMPLETADAS POR MES</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 14 }}>COMPLETADAS POR MES</div>
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -199,19 +206,19 @@ export default function StatsView({ data }) {
       </div>}
 
       {/* Objective progress */}
-      {objectiveProgress.length > 0 && <div style={{ padding: '0 20px 8px' }}>
+      {objectiveProgress.length > 0 && <div style={{ padding: '0 8px 8px' }}>
         <Card>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>PROGRESO DE OBJETIVOS</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 14 }}>PROGRESO DE OBJETIVOS</div>
           {objectiveProgress.map((op, i) => (
             <div key={i} style={{ marginBottom: i < objectiveProgress.length - 1 ? 16 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{op.name}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.sub }}>{op.name}</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: A }}>{op.pct}%</span>
               </div>
               <div style={{ width: '100%', height: 10, background: C.hi, borderRadius: 5, overflow: 'hidden' }}>
                 <div style={{ width: op.pct + '%', height: '100%', background: A, borderRadius: 5, transition: 'width .3s' }} />
               </div>
-              <div style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
                 {op.completed}/{op.totalExpected} rutinas · Semana {op.elapsedWeeks}/{op.totalWeeks}
               </div>
             </div>
@@ -219,19 +226,51 @@ export default function StatsView({ data }) {
         </Card>
       </div>}
 
-      {inactiveProgress.length > 0 && <div style={{ padding: '0 20px 24px' }}>
+      {allExercises.length > 0 && (
+        <div style={{ padding: '0 8px 8px' }}>
+          <Card>
+            <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 10 }}>PROGRESIÓN POR EJERCICIO</div>
+            <select
+              value={selectedExerciseId || ''}
+              onChange={e => setSelectedExerciseId(e.target.value || null)}
+              style={{
+                width: '100%', background: C.hi, border: `1px solid ${C.border}`, borderRadius: 10,
+                padding: '10px 12px', color: C.text, fontSize: 13, fontWeight: 600, outline: 'none'
+              }}
+            >
+              <option value="">Seleccionar ejercicio...</option>
+              {allExercises.map(ex => (
+                <option key={ex.id} value={ex.id}>{ex.nombre}</option>
+              ))}
+            </select>
+          </Card>
+          {selectedExerciseId && (() => {
+            const ex = allExercises.find(e => e.id === selectedExerciseId)
+            if (!ex) return null
+            return (
+              <ProgressionChart
+                weightHistory={ex.weightHistory}
+                exerciseName={ex.nombre}
+                showEstimated1RM={ex.oneRMMode === 'auto'}
+              />
+            )
+          })()}
+        </div>
+      )}
+
+      {inactiveProgress.length > 0 && <div style={{ padding: '0 8px 24px' }}>
         <Card style={{ opacity: 0.7 }}>
-          <div style={{ fontSize: 11, color: '#fff', letterSpacing: '1px', marginBottom: 14 }}>HISTORIAL DE OBJETIVOS</div>
+          <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 14 }}>HISTORIAL DE OBJETIVOS</div>
           {inactiveProgress.map((op, i) => (
             <div key={i} style={{ marginBottom: i < inactiveProgress.length - 1 ? 16 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{op.name}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.sub }}>{op.name}</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: C.muted }}>{op.pct}%</span>
               </div>
               <div style={{ width: '100%', height: 10, background: C.hi, borderRadius: 5, overflow: 'hidden' }}>
                 <div style={{ width: op.pct + '%', height: '100%', background: C.muted, borderRadius: 5 }} />
               </div>
-              <div style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
                 {op.completed}/{op.totalExpected} rutinas · {op.totalWeeks} semanas
               </div>
             </div>

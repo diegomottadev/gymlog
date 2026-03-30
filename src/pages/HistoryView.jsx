@@ -10,7 +10,7 @@ export default function HistoryView({ data, onDelete, onDeleteAll }) {
   const [confirmAll, setConfirmAll] = useState(false)
 
   if (!sorted.length) return (
-    <div style={{ padding: '60px 20px', textAlign: 'center', color: C.muted }}>
+    <div style={{ padding: '60px 8px', textAlign: 'center', color: C.muted }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>🏋️</div>
       <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: C.text }}>Sin entrenamientos aún</div>
       <div style={{ fontSize: 13 }}>Registrá tu primera sesión</div>
@@ -19,7 +19,7 @@ export default function HistoryView({ data, onDelete, onDeleteAll }) {
 
   return (
     <div>
-      <div style={{ padding: '24px 20px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '24px 8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 20, fontWeight: 800 }}>Historial</div>
         {confirmAll ? (
           <div style={{ display: 'flex', gap: 6 }}>
@@ -30,7 +30,7 @@ export default function HistoryView({ data, onDelete, onDeleteAll }) {
           <Btn onClick={() => setConfirmAll(true)} variant="danger" style={{ padding: '6px 12px', fontSize: 11, borderRadius: 8 }}>Borrar todos</Btn>
         )}
       </div>
-      <div style={{ padding: '0 20px' }}>
+      <div style={{ padding: '0 8px' }}>
         {sorted.map(w => (
           <Card key={w.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

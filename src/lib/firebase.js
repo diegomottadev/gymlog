@@ -6,10 +6,14 @@ let _db = null
 export let _uid = null
 
 export function initFirebaseApp(cfg) {
-  if (!firebase.apps.length) firebase.initializeApp(cfg)
-  _db = firebase.firestore()
-  _db.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED, merge: true })
-  _db.enablePersistence({ synchronizeTabs: true }).catch(() => { /* ignore */ })
+  if (!firebase.apps.length) {
+    firebase.initializeApp(cfg)
+    _db = firebase.firestore()
+    _db.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED, merge: true })
+    _db.enablePersistence({ synchronizeTabs: true }).catch(() => { /* ignore */ })
+  } else {
+    _db = firebase.firestore()
+  }
 }
 
 export async function fbSignIn(email, pass) {
@@ -76,7 +80,7 @@ function cleanUndefined(obj) {
 export async function fbSave(data) {
   if (!_db || !_uid) return
   try {
-    await _db.collection('users').doc(_uid).set(cleanUndefined(data))
+    await _db.collection('users').doc(_uid).set(cleanUndefined(data), { merge: true })
   } catch (e) {
     console.error('fbSave', e)
   }
@@ -164,6 +168,17 @@ export async function fbLoadPendingRequests() {
   }
 }
 
+export async function fbLoadTrainers() {
+  if (!_db) return []
+  try {
+    const snap = await _db.collection('users').where('role', '==', 'trainer').get()
+    return snap.docs.map(d => ({ uid: d.id, ...d.data() }))
+  } catch (e) {
+    console.error('fbLoadTrainers', e)
+    return []
+  }
+}
+
 export async function fbApproveRequest(uid) {
   if (!_db) return
   await _db.collection('trainerRequests').doc(uid).update({ status: 'approved' })
@@ -188,6 +203,7 @@ export async function fbSaveSharedObjective(obj) {
     objective: obj.objective,
     updatedAt: new Date().toISOString()
   }
+  if (obj.studentProfile) data.studentProfile = obj.studentProfile
   if (!obj.id) data.createdAt = new Date().toISOString()
   await ref.set(data, { merge: true })
   return ref.id
@@ -224,3 +240,96 @@ export async function fbDeleteSharedObjective(id) {
   if (!_db) return
   await _db.collection('sharedObjectives').doc(id).delete()
 }
+
+export async function fbToggleSharedCompletion(sharedObjectiveId, dayIndex, date) {
+  if (!_db) return null
+  const ref = _db.collection('sharedObjectives').doc(sharedObjectiveId)
+  const doc = await ref.get()
+  if (!doc.exists) return null
+  const data = doc.data()
+  const completions = data.completions || []
+  const now = new Date()
+  const dow = now.getDay()
+  const diff = dow === 0 ? 6 : dow - 1
+  const monDt = new Date(now); monDt.setDate(now.getDate() - diff); monDt.setHours(12, 0, 0, 0)
+  const sunDt = new Date(monDt.getFullYear(), monDt.getMonth(), monDt.getDate() + 6, 12, 0, 0)
+  const pad = n => String(n).padStart(2, '0')
+  const mon = `${monDt.getFullYear()}-${pad(monDt.getMonth() + 1)}-${pad(monDt.getDate())}`
+  const sun = `${sunDt.getFullYear()}-${pad(sunDt.getMonth() + 1)}-${pad(sunDt.getDate())}`
+  const existing = completions.find(c => c.dayIndex === dayIndex && c.date >= mon && c.date <= sun)
+  let newCompletions
+  if (existing) {
+    newCompletions = completions.filter(c => c.id !== existing.id)
+  } else {
+    const id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4)
+    newCompletions = [...completions, { id, dayIndex, date, completedAt: new Date().toISOString() }]
+  }
+  await ref.update({ completions: newCompletions })
+  return newCompletions
+}
+
+// --- Admin: profile by uid ---
+export async function fbLoadProfileByUid(uid) {
+  if (!_db) return null
+  try {
+    const doc = await _db.collection('users').doc(uid).get()
+    return doc.exists ? doc.data().profile || null : null
+  } catch (e) {
+    console.error('fbLoadProfileByUid', e)
+    return null
+  }
+}
+
+export async function fbSaveProfileByUid(uid, profile) {
+  if (!_db) return
+  await _db.collection('users').doc(uid).set({ profile }, { merge: true })
+}
+
+// --- Active/Inactive ---
+export async function fbSetUserActive(uid, active) {
+  if (!_db) return
+  await _db.collection('users').doc(uid).set({ active: !!active }, { merge: true })
+}
+
+export async function fbLoadUserActive(uid) {
+  if (!_db) return true
+  try {
+    const doc = await _db.collection('users').doc(uid).get()
+    if (!doc.exists) return true
+    const data = doc.data()
+    return data.active !== false
+  } catch (e) {
+    console.error('fbLoadUserActive', e)
+    return true
+  }
+}
+
+// --- Exempt ---
+export async function fbSetUserExempt(uid, exempt) {
+  if (!_db) return
+  await _db.collection('users').doc(uid).set({ exempt: !!exempt }, { merge: true })
+}
+
+export async function fbLoadUserExempt(uid) {
+  if (!_db) return false
+  try {
+    const doc = await _db.collection('users').doc(uid).get()
+    return doc.exists ? !!doc.data().exempt : false
+  } catch (e) {
+    console.error('fbLoadUserExempt', e)
+    return false
+  }
+}
+
+export async function fbLoadSharedCompletions(sharedObjectiveId) {
+  if (!_db) return []
+  try {
+    const doc = await _db.collection('sharedObjectives').doc(sharedObjectiveId)?.get()
+    if (!doc.exists) return []
+    return doc.data().completions || []
+  } catch (e) {
+    console.error('fbLoadSharedCompletions', e)
+    return []
+  }
+}
+

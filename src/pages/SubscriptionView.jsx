@@ -81,37 +81,37 @@ export default function SubscriptionView({ uid, email, role, subscription, onLog
 
       <Card style={{ border: `1px solid ${A}33`, marginBottom: 16 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: '1px', marginBottom: 4 }}>PLAN {prices.label.toUpperCase()}</div>
-          <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Acceso completo a todas las funcionalidades</div>
+          <div style={{ fontSize: 12, color: C.sub, letterSpacing: '1px', marginBottom: 4 }}>PLAN {prices.label.toUpperCase()}</div>
+          <div style={{ fontSize: 14, color: C.sub, marginBottom: 16 }}>Acceso completo a todas las funcionalidades</div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
           <div style={{ flex: 1, textAlign: 'center', padding: 16, background: C.hi, borderRadius: 12, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', marginBottom: 8 }}>ARGENTINA</div>
+            <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 8 }}>ARGENTINA</div>
             <div style={{ fontSize: 28, fontWeight: 900, color: A, fontFamily: 'monospace' }}>
               ${prices.ars.toLocaleString('es-AR')}
             </div>
-            <div style={{ fontSize: 11, color: C.muted }}>ARS / mes</div>
+            <div style={{ fontSize: 12, color: C.sub }}>ARS / mes</div>
           </div>
           <div style={{ flex: 1, textAlign: 'center', padding: 16, background: C.hi, borderRadius: 12, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 9, color: C.muted, letterSpacing: '1px', marginBottom: 8 }}>INTERNACIONAL</div>
+            <div style={{ fontSize: 11, color: C.sub, letterSpacing: '1px', marginBottom: 8 }}>INTERNACIONAL</div>
             <div style={{ fontSize: 28, fontWeight: 900, color: A, fontFamily: 'monospace' }}>
               ${prices.usd}
             </div>
-            <div style={{ fontSize: 11, color: C.muted }}>USD / mes</div>
+            <div style={{ fontSize: 12, color: C.sub }}>USD / mes</div>
           </div>
         </div>
 
         {err && <div style={{ color: C.danger, fontSize: 12, marginBottom: 12, padding: '10px 14px', background: 'rgba(255,85,85,.1)', borderRadius: 10, border: `1px solid ${C.danger}` }}>{err}</div>}
 
         <Btn onClick={handleMercadoPago} disabled={loading === 'mp'}
-          style={{ width: '100%', padding: 14, fontSize: 15, borderRadius: 14, marginBottom: 10 }}>
+          style={{ width: '100%', padding: 14, fontSize: 15, borderRadius: 12, marginBottom: 10 }}>
           {loading === 'mp' ? 'Redirigiendo...' : 'Pagar con Mercado Pago (ARS)'}
         </Btn>
 
         <button onClick={handleStripe} disabled={loading === 'stripe'}
           style={{
-            width: '100%', padding: 14, fontSize: 15, borderRadius: 14, cursor: 'pointer',
+            width: '100%', padding: 14, fontSize: 15, borderRadius: 12, cursor: 'pointer',
             background: '#635BFF', color: '#fff', border: 'none', fontWeight: 700,
             opacity: loading === 'stripe' ? 0.6 : 1
           }}>
@@ -125,9 +125,6 @@ export default function SubscriptionView({ uid, email, role, subscription, onLog
             ← Volver
           </span>
         )}
-        <span onClick={onLogout} style={{ color: C.muted, cursor: 'pointer', fontSize: 13 }}>
-          Cerrar sesion
-        </span>
       </div>
     </div>
   )
