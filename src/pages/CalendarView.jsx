@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
-import { Check } from 'lucide-react'
+import { Check, TrendingUp } from 'lucide-react'
 import { A, C, DAY_NAMES } from '../lib/constants'
 import Card from '../components/Card'
-import { resolveExerciseSets } from '../lib/overrides'
+import { resolveExerciseSets, hasWeightOverride } from '../lib/overrides'
 import ProgressionSection from '../components/ProgressionSection'
 import ExName from '../components/ExName'
 
@@ -63,7 +63,7 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
         if (!day || (!day.rest && !day.label && !day.exercises.length)) continue
         const completed = day.rest ? false : data.completions.some(c => c.objectiveId === obj.id && c.dayIndex === dayIdx && c.date === ds)
         if (!map[ds]) map[ds] = []
-        map[ds].push({ objective: obj, dayIndex: dayIdx, day, completed, inactive: obj.active === false, rest: !!day.rest })
+        map[ds].push({ objective: obj, dayIndex: dayIdx, day, completed, inactive: obj.active === false, rest: !!day.rest, hasOverride: !day.rest && hasWeightOverride(day.exercises, ds) })
       }
     }
     return map
@@ -129,10 +129,13 @@ export default function CalendarView({ data, onSelectObjectiveDay, onToggleCompl
                     color: isSelected ? '#111' : allCompleted ? A : isToday ? C.text : hasRoutine ? C.text : C.muted
                   }}>{cd.date.getDate()}</span>
                   {hasRoutine && !isSelected && (
-                    <div style={{ display: 'flex', gap: 2, marginTop: 2 }}>
+                    <div style={{ display: 'flex', gap: 2, marginTop: 2, alignItems: 'center' }}>
                       {routines.map((r, ri) => (
                         <div key={ri} style={{ width: 4, height: 4, borderRadius: 2, background: r.inactive ? '#555' : r.completed ? A : C.muted }} />
                       ))}
+                      {routines.some(r => r.hasOverride) && (
+                        <TrendingUp size={8} color={A} style={{ marginLeft: 1 }} />
+                      )}
                     </div>
                   )}
                 </div>
