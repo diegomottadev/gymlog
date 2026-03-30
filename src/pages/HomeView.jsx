@@ -6,7 +6,6 @@ import { requestNotifPermission } from '../lib/notifications'
 import { getTodayQuote } from '../lib/quotes'
 import Card from '../components/Card'
 import Btn from '../components/Btn'
-import ProgressionSection from '../components/ProgressionSection'
 
 export default function HomeView({ data, sharedObjectives = [], onSelectObjective, onSelectTodayRoutine, onUpdateReminder, onSelectShared }) {
   const todayIdx = getTodayDayIndex()
@@ -119,9 +118,6 @@ export default function HomeView({ data, sharedObjectives = [], onSelectObjectiv
               <ChevronRight aria-hidden="true" size={20} color={A} />
             </div>
           </div>
-        ))}
-        {todayRoutines.map(({ obj, day }) => (
-          <ProgressionSection key={'prog-' + obj.id} exercises={day.exercises} />
         ))}
       </div> : <div style={{ padding: '0 8px 12px' }}>
         {data.objectives.filter(obj => obj.active !== false).map(obj => (
