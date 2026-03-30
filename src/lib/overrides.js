@@ -59,3 +59,17 @@ export function formatSetsCompact(sets) {
   }
   return null
 }
+
+export function hasWeightOverride(exercises, dateStr) {
+  if (!exercises || !dateStr) return false
+  return exercises.some(ex => ex.dayOverrides && ex.dayOverrides[dateStr])
+}
+
+export function getWeightDelta(exercise, dateStr) {
+  if (!dateStr || !exercise.dayOverrides || !exercise.dayOverrides[dateStr]) return 0
+  const baseSets = buildDefaultSets(exercise)
+  const overrideSets = exercise.dayOverrides[dateStr].sets
+  const baseMax = Math.max(...baseSets.map(s => s.peso))
+  const overrideMax = Math.max(...overrideSets.map(s => s.peso))
+  return overrideMax - baseMax
+}
