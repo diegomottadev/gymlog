@@ -62,10 +62,15 @@ export default function DayView({ objective, dayIndex, selectedDate, completions
     const newEx = exercises.map(e => {
       if (e.id !== id) return e
       const numVal = field === 'nombre' ? value : (parseFloat(value) || 0)
-      const updated = { ...e, [field]: numVal }
-      // When editing with date context, also save override for that date
-      if (hasDateContext && (field === 'peso' || field === 'repeticiones' || field === 'series')) {
-        const overrides = { ...(updated.dayOverrides || {}) }
+      const isOverrideField = field === 'peso' || field === 'repeticiones' || field === 'series'
+      // When editing from calendar, only update the dayOverride, not the base
+      const updated = { ...e }
+      if (!hasDateContext || !isOverrideField) {
+        updated[field] = numVal
+      }
+      // When editing with date context, save override for that date
+      if (hasDateContext && isOverrideField) {
+        const overrides = { ...(e.dayOverrides || {}) }
         const currentSets = overrides[dayDateStr]
           ? overrides[dayDateStr].sets.map(s => ({ ...s }))
           : buildDefaultSets(e)
@@ -82,15 +87,17 @@ export default function DayView({ objective, dayIndex, selectedDate, completions
         updated.dayOverrides = overrides
       }
       // Auto-recalc 1RM when peso or reps change and mode is auto
-      if ((field === 'peso' || field === 'repeticiones') && updated.oneRMMode === 'auto' && updated.peso > 0 && updated.repeticiones > 0) {
-        updated.oneRM = calcEpley1RM(updated.peso, updated.repeticiones)
+      const effectivePeso = hasDateContext && field === 'peso' ? numVal : updated.peso
+      const effectiveReps = hasDateContext && field === 'repeticiones' ? numVal : updated.repeticiones
+      if ((field === 'peso' || field === 'repeticiones') && updated.oneRMMode === 'auto' && effectivePeso > 0 && effectiveReps > 0) {
+        updated.oneRM = calcEpley1RM(effectivePeso, effectiveReps)
       }
       // Track weight history when peso changes
-      if (field === 'peso' && updated.peso > 0) {
+      if (field === 'peso' && numVal > 0) {
         const histDate = hasDateContext ? dayDateStr : toDay()
         const history = [...(updated.weightHistory || [])]
         const idx = history.findIndex(h => h.date === histDate)
-        const entry = { date: histDate, peso: updated.peso, oneRM: updated.oneRM || 0 }
+        const entry = { date: histDate, peso: numVal, oneRM: updated.oneRM || 0 }
         if (idx >= 0) history[idx] = entry
         else history.push(entry)
         updated.weightHistory = history
